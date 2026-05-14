@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light theme colors -->
+    <color name="color_background_light">#F7F5F3</color>
+    <color name="color_card_light">#FFFFFF</color>
+    <color name="color_primary_text_light">#131313</color>
+    <color name="color_secondary_text_light">#7A7A7A</color>
+    <color name="color_accent_start">#00BFA6</color>
+    <color name="color_accent_end">#0072FF</color>
+
+    <!-- Dark theme colors -->
+    <color name="color_background_dark">#000000</color>
+    <color name="color_card_dark">#121212</color>
+    <color name="color_primary_text_dark">#FFFFFF</color>
+    <color name="color_secondary_text_dark">#B0B0B0</color>
+</resources>
