@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
@@ -8,11 +9,17 @@ plugins {
 }
 
 val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        FileInputStream(localPropertiesFile).use { load(it) }
+    }
 }
 
-fun String.escapeForBuildConfig(): String = replace("\\", "\\\\").replace("\"", "\\\"")
+fun localProperty(key: String): String {
+    return localProperties.getProperty(key, "")
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+}
 
 android {
     namespace = "com.watchvault.app"
@@ -25,10 +32,20 @@ android {
         versionCode = 2
         versionName = "1.1"
 
-        val tmdbApiKey = (localProperties.getProperty("TMDB_API_KEY") ?: "").escapeForBuildConfig()
-        val omdbApiKey = (localProperties.getProperty("OMDB_API_KEY") ?: "").escapeForBuildConfig()
-        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
-        buildConfigField("String", "OMDB_API_KEY", "\"$omdbApiKey\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"${localProperty("TMDB_API_KEY")}\"")
+        buildConfigField("String", "TMDB_ACCESS_TOKEN", "\"${localProperty("TMDB_ACCESS_TOKEN")}\"")
+
+        buildConfigField("String", "OMDB_API_KEY", "\"${localProperty("OMDB_API_KEY")}\"")
+
+        buildConfigField("String", "ANILIST_BASE_URL", "\"${localProperty("ANILIST_BASE_URL")}\"")
+        buildConfigField("String", "JIKAN_BASE_URL", "\"${localProperty("JIKAN_BASE_URL")}\"")
+
+        buildConfigField("String", "WATCHMODE_API_KEY", "\"${localProperty("WATCHMODE_API_KEY")}\"")
+        buildConfigField("String", "WATCHMODE_BASE_URL", "\"${localProperty("WATCHMODE_BASE_URL")}\"")
+
+        buildConfigField("String", "TMDB_BASE_URL", "\"https://api.themoviedb.org/3/\"")
+        buildConfigField("String", "TMDB_IMAGE_BASE_URL", "\"https://image.tmdb.org/t/p/\"")
+        buildConfigField("String", "OMDB_BASE_URL", "\"https://www.omdbapi.com/\"")
     }
 
     buildTypes {
