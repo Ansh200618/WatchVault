@@ -5,9 +5,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.watchvault.app.domain.model.Reminder
+import com.watchvault.app.worker.ReminderWorker
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 
 class ReminderScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -31,6 +36,7 @@ class ReminderScheduler(private val context: Context) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
         } else {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, pendingIntent)
+            scheduleWorkFallback(reminder, triggerMillis)
         }
     }
 
@@ -38,5 +44,14 @@ class ReminderScheduler(private val context: Context) {
         val intent = Intent(context, ReminderReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(context, reminderId.toInt(), intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
         if (pendingIntent != null) alarmManager.cancel(pendingIntent)
+    }
+
+    private fun scheduleWorkFallback(reminder: Reminder, triggerMillis: Long) {
+        val delayMs = (triggerMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+        val request = OneTimeWorkRequestBuilder<ReminderWorker>()
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .setInputData(ReminderWorker.inputData(reminder.mediaId, reminder.mediaTitle))
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork("reminder-${reminder.id}", ExistingWorkPolicy.REPLACE, request)
     }
 }

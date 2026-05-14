@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.watchvault.app.domain.model.GoalType
 import com.watchvault.app.presentation.components.*
@@ -25,10 +26,10 @@ import com.watchvault.app.presentation.viewmodel.ProfileViewModel
 
 @Composable
 fun ProfileScreen(navController: NavHostController, viewModel: ProfileViewModel = hiltViewModel()) {
-    val stats by viewModel.stats.collectAsState()
-    val goals by viewModel.goals.collectAsState()
-    val brain by viewModel.brain.collectAsState()
-    val backup by viewModel.backupJson.collectAsState()
+    val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val goals by viewModel.goals.collectAsStateWithLifecycle()
+    val brain by viewModel.brain.collectAsStateWithLifecycle()
+    val backup by viewModel.backupJson.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

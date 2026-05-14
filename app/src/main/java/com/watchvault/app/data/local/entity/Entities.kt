@@ -7,23 +7,33 @@ import com.watchvault.app.domain.model.*
 @Entity(tableName = "media")
 data class MediaEntity(
     @PrimaryKey val id: Long,
+    val tmdbId: String = "",
+    val imdbId: String = "",
+    val anilistId: String = "",
     val title: String,
+    val originalTitle: String = "",
     val overview: String,
     val posterUrl: String,
-    val bannerUrl: String,
+    val bannerUrl: String = "",
     val trailerUrl: String,
     val type: MediaType,
     val releaseDate: String,
+    val nextEpisodeDate: String? = null,
     val status: MediaStatus,
-    val language: String,
+    val language: String = "",
+    val languageName: String = "",
     val country: String,
     val tmdbRating: Double?,
     val imdbRating: Double?,
+    val rottenTomatoesRating: String? = null,
+    val metacriticRating: String? = null,
     val genres: List<String>,
     val runtime: Int,
     val totalSeasons: Int?,
     val totalEpisodes: Int?,
-    val popularity: Int
+    val popularity: Int,
+    val createdAt: String = "",
+    val updatedAt: String = ""
 )
 
 @Entity(tableName = "seasons")
@@ -122,4 +132,18 @@ data class WatchProviderEntity(
     val providerType: ProviderType,
     val region: String,
     val deepLinkUrl: String
+)
+
+@Entity(tableName = "language_availability")
+data class LanguageAvailabilityEntity(
+    @PrimaryKey val id: Long,
+    val mediaId: Long,
+    val originalLanguageCode: String,
+    val originalLanguageName: String,
+    val audioLanguages: List<String>,
+    val subtitleLanguages: List<String>,
+    val dubbedLanguages: List<String>,
+    val availableRegions: List<String>,
+    val dataSource: String,
+    val lastUpdated: String
 )

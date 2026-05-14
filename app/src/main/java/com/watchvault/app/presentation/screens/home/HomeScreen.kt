@@ -15,8 +15,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.watchvault.app.BuildConfig
 import com.watchvault.app.domain.model.MediaItem
 import com.watchvault.app.presentation.components.*
 import com.watchvault.app.presentation.navigation.Screen
@@ -24,12 +26,12 @@ import com.watchvault.app.presentation.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel = hiltViewModel()) {
-    val featured by viewModel.featured.collectAsState()
-    val continueWatching by viewModel.continueWatching.collectAsState()
-    val trending by viewModel.trending.collectAsState()
-    val upcoming by viewModel.upcoming.collectAsState()
-    val brain by viewModel.watchBrain.collectAsState()
-    val recommendations by viewModel.moodRecommendations.collectAsState()
+    val featured by viewModel.featured.collectAsStateWithLifecycle()
+    val continueWatching by viewModel.continueWatching.collectAsStateWithLifecycle()
+    val trending by viewModel.trending.collectAsStateWithLifecycle()
+    val upcoming by viewModel.upcoming.collectAsStateWithLifecycle()
+    val brain by viewModel.watchBrain.collectAsStateWithLifecycle()
+    val recommendations by viewModel.moodRecommendations.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var mood by rememberSaveable { mutableStateOf("Action") }
 
@@ -39,11 +41,15 @@ fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel = hilt
             AsyncImage("https://picsum.photos/seed/ansh/80", null, contentScale = ContentScale.Crop, modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.large))
         }
         Spacer(Modifier.height(16.dp))
+        if (BuildConfig.TMDB_API_KEY.isBlank()) {
+            Text("Add API key to enable live data", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Spacer(Modifier.height(8.dp))
+        }
         SearchBar(query, { query = it }, placeholder = "Search movies, series, anime...")
         Spacer(Modifier.height(16.dp))
         CategoryChipsRow(listOf("All", "Movies", "Series", "Anime", "Upcoming", "Completed")) {}
         Spacer(Modifier.height(18.dp))
-        featured.firstOrNull()?.let { FeaturedMediaCard(it) { navController.navigate(Screen.Detail.createRoute(it.id)) } }
+        featured.firstOrNull()?.let { FeaturedMediaCard(it) { navController.navigate(Screen.Detail.createRoute(it.id, it.type)) } }
         Spacer(Modifier.height(24.dp))
         Text("Watch Brain", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
@@ -73,7 +79,7 @@ private fun MediaRow(title: String, items: List<MediaItem>, navController: NavHo
         }
         Spacer(Modifier.height(10.dp))
         if (items.isEmpty()) EmptyStateView("Nothing here", "Add titles to your library to see recommendations.") else LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { item -> MediaPosterCard(item, Modifier.size(142.dp, 214.dp)) { navController.navigate(Screen.Detail.createRoute(it.id)) } }
+            items(items) { item -> MediaPosterCard(item, Modifier.size(142.dp, 214.dp)) { navController.navigate(Screen.Detail.createRoute(it.id, it.type)) } }
         }
     }
 }

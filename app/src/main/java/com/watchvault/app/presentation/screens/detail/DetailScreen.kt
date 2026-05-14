@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.watchvault.app.domain.model.*
@@ -30,13 +31,13 @@ import com.watchvault.app.presentation.viewmodel.DetailViewModel
 
 @Composable
 fun DetailScreen(navController: NavHostController, mediaId: Long, viewModel: DetailViewModel = hiltViewModel()) {
-    val item by viewModel.getMedia(mediaId).collectAsState()
-    val status by viewModel.getStatus(mediaId).collectAsState()
-    val providers by viewModel.getProviders(mediaId).collectAsState()
-    val spoilers by viewModel.spoilerSettings.collectAsState()
+    val item by viewModel.getMedia(mediaId).collectAsStateWithLifecycle()
+    val status by viewModel.getStatus(mediaId).collectAsStateWithLifecycle()
+    val providers by viewModel.getProviders(mediaId).collectAsStateWithLifecycle()
+    val spoilers by viewModel.spoilerSettings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showReminderDialog by remember { mutableStateOf(false) }
-    val media = item ?: return EmptyStateView("Title not found", "This mock title is unavailable.")
+    val media = item ?: return EmptyStateView("Title not found", "Add API key to enable live data or save titles for offline view.")
 
     if (showReminderDialog) {
         AlertDialog(
@@ -82,6 +83,7 @@ fun DetailScreen(navController: NavHostController, mediaId: Long, viewModel: Det
                         RatingCard("TMDB", if (spoilers.hideRatingsUntilWatched && status?.status != UserWatchStatus.COMPLETED) "Hidden" else media.ratingTmdb?.toString() ?: "N/A")
                         RatingCard("IMDb", if (spoilers.hideRatingsUntilWatched && status?.status != UserWatchStatus.COMPLETED) "Hidden" else media.ratingImdb?.toString() ?: "N/A")
                         RatingCard("RT", media.ratingRottenTomatoes ?: "N/A")
+                        RatingCard("MC", media.ratingMetacritic ?: "N/A")
                     }
                     Spacer(Modifier.height(16.dp))
                     Text("Overview", fontWeight = FontWeight.Bold)
@@ -100,7 +102,10 @@ fun DetailScreen(navController: NavHostController, mediaId: Long, viewModel: Det
                         }
                     } else {
                         Spacer(Modifier.height(10.dp))
-                        Button(onClick = { viewModel.markWatched(media.id) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) { Text("Mark movie watched") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { viewModel.markWatched(media.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(28.dp)) { Text("Mark watched") }
+                            OutlinedButton(onClick = { viewModel.markUnwatched(media.id) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(28.dp)) { Text("Mark unwatched") }
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                     Text("Priority", fontWeight = FontWeight.Bold)
@@ -112,7 +117,7 @@ fun DetailScreen(navController: NavHostController, mediaId: Long, viewModel: Det
                     if (providers.isEmpty()) Text("Availability information is not available for your region yet.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) else providers.forEach { ProviderCard(it) { if (it.deepLinkUrl.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it.deepLinkUrl))) }; Spacer(Modifier.height(8.dp)) }
                     Spacer(Modifier.height(12.dp))
                     Text("Languages", fontWeight = FontWeight.Bold)
-                    Text("Original: ${media.originalLanguageName} · Audio/Subtitles availability uses safe mock metadata.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f))
+                    Text("Original: ${media.originalLanguageName} · Metadata only (no streaming links).", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f))
                 }
             }
         }

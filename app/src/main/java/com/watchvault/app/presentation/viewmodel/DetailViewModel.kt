@@ -24,6 +24,7 @@ class DetailViewModel @Inject constructor(
     fun getProviders(id: Long): StateFlow<List<WatchProvider>> = repository.getProviders(id).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun addToLibrary(id: Long) = viewModelScope.launch { repository.addToLibrary(id) }
     fun markWatched(id: Long) = viewModelScope.launch { repository.markMovieWatched(id) }
+    fun markUnwatched(id: Long) = viewModelScope.launch { repository.addToLibrary(id, UserWatchStatus.PLAN_TO_WATCH) }
     fun toggleFavorite(id: Long) = viewModelScope.launch { repository.toggleFavorite(id) }
     fun setPriority(id: Long, priority: Priority) = viewModelScope.launch { repository.setPriority(id, priority) }
 
@@ -51,4 +52,3 @@ class DetailViewModel @Inject constructor(
         scheduler.schedule(reminder)
     }
 }
-

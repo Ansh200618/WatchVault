@@ -1,6 +1,6 @@
 # WatchVault
 
-WatchVault is a native Android entertainment tracking application built with Kotlin, Jetpack Compose, Material 3, MVVM, Hilt, Room-ready persistence, DataStore, WorkManager, AlarmManager, and offline mock data.
+WatchVault is a native Android entertainment tracking application built with Kotlin, Jetpack Compose, Material 3, MVVM, Hilt, Room persistence, DataStore, WorkManager, AlarmManager, and offline fallback JSON data.
 
 ## What changed in v1.1
 
@@ -32,13 +32,16 @@ WatchVault is a native Android entertainment tracking application built with Kot
 
 ## API keys
 
-The app runs without API keys and without login. Future metadata integrations should be added inside `data/remote/` and wired through repositories.
+Do not hardcode API keys in Kotlin files. Add them to `local.properties` in project root:
 
-Suggested future APIs:
+```properties
+TMDB_API_KEY=your_tmdb_key
+OMDB_API_KEY=your_omdb_key
+```
 
-- TMDB for movie/TV metadata, posters, trailers, and legal watch providers.
-- OMDb for IMDb/Rotten Tomatoes/Metacritic-style rating data.
-- AniList or Jikan for anime metadata.
+They are exposed via `BuildConfig.TMDB_API_KEY` and `BuildConfig.OMDB_API_KEY`.
+
+If keys are missing, app still works with bundled fallback metadata.
 
 ## Legal note
 
