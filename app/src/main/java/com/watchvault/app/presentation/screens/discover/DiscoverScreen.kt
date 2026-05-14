@@ -12,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.watchvault.app.BuildConfig
 import com.watchvault.app.domain.model.MediaType
 import com.watchvault.app.presentation.components.*
 import com.watchvault.app.presentation.navigation.Screen
@@ -22,7 +24,7 @@ import com.watchvault.app.presentation.viewmodel.DiscoverViewModel
 fun DiscoverScreen(navController: NavHostController, viewModel: DiscoverViewModel = hiltViewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedCategory by rememberSaveable { mutableStateOf("All") }
-    val items by viewModel.items.collectAsState()
+    val items by viewModel.items.collectAsStateWithLifecycle()
     val filtered = items.filter { item ->
         val categoryMatch = when (selectedCategory) {
             "Movies" -> item.type == MediaType.MOVIE
@@ -36,6 +38,10 @@ fun DiscoverScreen(navController: NavHostController, viewModel: DiscoverViewMode
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Discover", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
+        if (BuildConfig.TMDB_API_KEY.isBlank()) {
+            Text("Add API key to enable live data", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Spacer(Modifier.height(8.dp))
+        }
         SearchBar(query = query, onQueryChange = { query = it }, placeholder = "Search movies, series, anime...")
         Spacer(Modifier.height(12.dp))
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -46,7 +52,7 @@ fun DiscoverScreen(navController: NavHostController, viewModel: DiscoverViewMode
         Spacer(Modifier.height(12.dp))
         if (filtered.isEmpty()) EmptyStateView("No result", "Try another genre, language, rating, or provider filter.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(filtered) { item ->
-                MediaPosterCard(item, modifier = Modifier.fillMaxWidth().height(220.dp)) { navController.navigate(Screen.Detail.createRoute(it.id)) }
+                MediaPosterCard(item, modifier = Modifier.fillMaxWidth().height(220.dp)) { navController.navigate(Screen.Detail.createRoute(it.id, it.type)) }
             }
         }
     }

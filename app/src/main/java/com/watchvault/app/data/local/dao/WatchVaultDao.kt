@@ -11,6 +11,7 @@ abstract class WatchVaultDao {
     @Query("SELECT * FROM media WHERE id = :id") abstract fun observeMediaById(id: Long): Flow<MediaEntity?>
     @Query("SELECT * FROM seasons WHERE mediaId = :mediaId ORDER BY seasonNumber") abstract fun observeSeasons(mediaId: Long): Flow<List<SeasonEntity>>
     @Query("SELECT * FROM episodes WHERE mediaId = :mediaId ORDER BY seasonNumber, episodeNumber") abstract fun observeEpisodes(mediaId: Long): Flow<List<EpisodeEntity>>
+    @Query("SELECT * FROM episodes ORDER BY seasonNumber, episodeNumber") abstract fun observeAllEpisodes(): Flow<List<EpisodeEntity>>
     @Query("SELECT * FROM user_media_status") abstract fun observeStatuses(): Flow<List<UserMediaStatusEntity>>
     @Query("SELECT * FROM user_media_status WHERE mediaId = :mediaId") abstract fun observeStatus(mediaId: Long): Flow<UserMediaStatusEntity?>
     @Query("SELECT * FROM reminders") abstract fun observeReminders(): Flow<List<ReminderEntity>>
@@ -18,6 +19,7 @@ abstract class WatchVaultDao {
     @Query("SELECT * FROM collections") abstract fun observeCollections(): Flow<List<CollectionEntity>>
     @Query("SELECT * FROM watch_goals") abstract fun observeGoals(): Flow<List<WatchGoalEntity>>
     @Query("SELECT * FROM providers WHERE mediaId = :mediaId") abstract fun observeProviders(mediaId: Long): Flow<List<WatchProviderEntity>>
+    @Query("SELECT * FROM language_availability WHERE mediaId = :mediaId") abstract fun observeLanguageAvailability(mediaId: Long): Flow<List<LanguageAvailabilityEntity>>
 
     @Upsert abstract suspend fun upsertMedia(items: List<MediaEntity>)
     @Upsert abstract suspend fun upsertSeasons(items: List<SeasonEntity>)
@@ -28,10 +30,35 @@ abstract class WatchVaultDao {
     @Upsert abstract suspend fun upsertEvent(item: WatchEventEntity)
     @Upsert abstract suspend fun upsertCollection(item: CollectionEntity)
     @Upsert abstract suspend fun upsertGoal(item: WatchGoalEntity)
+    @Upsert abstract suspend fun upsertProviders(items: List<WatchProviderEntity>)
+    @Upsert abstract suspend fun upsertLanguageAvailability(items: List<LanguageAvailabilityEntity>)
     @Delete abstract suspend fun deleteCollection(item: CollectionEntity)
     @Query("DELETE FROM reminders WHERE id = :id") abstract suspend fun deleteReminder(id: Long)
     @Query("SELECT * FROM episodes WHERE mediaId = :mediaId ORDER BY seasonNumber, episodeNumber") abstract suspend fun getEpisodesNow(mediaId: Long): List<EpisodeEntity>
     @Query("SELECT * FROM user_media_status WHERE mediaId = :mediaId") abstract suspend fun getStatusNow(mediaId: Long): UserMediaStatusEntity?
+    @Query("SELECT COUNT(*) FROM media") abstract suspend fun countMedia(): Int
+    @Query("DELETE FROM media") abstract suspend fun clearMedia()
+    @Query("DELETE FROM seasons") abstract suspend fun clearSeasons()
+    @Query("DELETE FROM episodes") abstract suspend fun clearEpisodes()
+    @Query("DELETE FROM user_media_status") abstract suspend fun clearStatuses()
+    @Query("DELETE FROM reminders") abstract suspend fun clearReminders()
+    @Query("DELETE FROM providers") abstract suspend fun clearProviders()
+    @Query("DELETE FROM language_availability") abstract suspend fun clearLanguageAvailability()
+    @Query("DELETE FROM collections") abstract suspend fun clearCollections()
+    @Query("DELETE FROM watch_goals") abstract suspend fun clearGoals()
+
+    @Transaction
+    open suspend fun clearAll() {
+        clearMedia()
+        clearSeasons()
+        clearEpisodes()
+        clearStatuses()
+        clearReminders()
+        clearProviders()
+        clearLanguageAvailability()
+        clearCollections()
+        clearGoals()
+    }
 
     @Transaction
     open suspend fun markEpisodeWatchedTransaction(

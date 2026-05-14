@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.watchvault.app.domain.model.*
 import com.watchvault.app.presentation.components.*
@@ -17,8 +18,8 @@ import com.watchvault.app.presentation.viewmodel.LibraryViewModel
 
 @Composable
 fun LibraryScreen(navController: NavHostController, viewModel: LibraryViewModel = hiltViewModel()) {
-    val items by viewModel.libraryItems.collectAsState()
-    val collections by viewModel.collections.collectAsState()
+    val items by viewModel.libraryItems.collectAsStateWithLifecycle()
+    val collections by viewModel.collections.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf("Watching") }
     val tabs = listOf("Watching", "Plan", "Completed", "Dropped", "On Hold", "Favorites", "Movies", "Series", "Anime")
     val filtered = items.filter { entry ->
@@ -46,7 +47,7 @@ fun LibraryScreen(navController: NavHostController, viewModel: LibraryViewModel 
             items(filtered) { entry ->
                 Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
                     Row(Modifier.fillMaxWidth().padding(12.dp)) {
-                        MediaPosterCard(entry.media, Modifier.size(88.dp, 132.dp), progress = entry.status?.progressPercentage) { navController.navigate(Screen.Detail.createRoute(it.id)) }
+                        MediaPosterCard(entry.media, Modifier.size(88.dp, 132.dp), progress = entry.status?.progressPercentage) { navController.navigate(Screen.Detail.createRoute(it.id, it.type)) }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(entry.media.title, fontWeight = FontWeight.Bold)

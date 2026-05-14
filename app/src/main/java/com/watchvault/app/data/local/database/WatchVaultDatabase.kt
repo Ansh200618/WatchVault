@@ -16,9 +16,10 @@ import com.watchvault.app.data.local.entity.*
         WatchEventEntity::class,
         CollectionEntity::class,
         WatchGoalEntity::class,
-        WatchProviderEntity::class
+        WatchProviderEntity::class,
+        LanguageAvailabilityEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

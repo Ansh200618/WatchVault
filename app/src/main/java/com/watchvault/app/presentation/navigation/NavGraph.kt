@@ -16,6 +16,7 @@ import com.watchvault.app.presentation.screens.profile.ProfileScreen
 import com.watchvault.app.presentation.screens.settings.SettingsScreen
 import com.watchvault.app.presentation.screens.splash.SplashScreen
 import com.watchvault.app.presentation.screens.tracker.EpisodeTrackerScreen
+import com.watchvault.app.presentation.screens.upcoming.UpcomingScreen
 import com.watchvault.app.presentation.screens.wrapped.YearEndWrappedScreen
 
 @Composable
@@ -25,6 +26,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController(), modi
         composable(Screen.Home.route) { HomeScreen(navController) }
         composable(Screen.Discover.route) { DiscoverScreen(navController) }
         composable(Screen.Library.route) { LibraryScreen(navController) }
+        composable(Screen.Upcoming.route) { UpcomingScreen(navController) }
         composable(Screen.Calendar.route) { CalendarScreen(navController) }
         composable(Screen.Profile.route) { ProfileScreen(navController) }
         composable(Screen.Settings.route) { SettingsScreen(navController) }
