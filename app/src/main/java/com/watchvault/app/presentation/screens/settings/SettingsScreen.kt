@@ -3,6 +3,7 @@ package com.watchvault.app.presentation.screens.settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,7 +18,7 @@ import com.watchvault.app.presentation.viewmodel.SettingsViewModel
 fun SettingsScreen(navController: NavHostController, viewModel: SettingsViewModel = hiltViewModel()) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val message by viewModel.actionMessage.collectAsStateWithLifecycle()
-    var importText by remember { mutableStateOf("") }
+    var importText by rememberSaveable { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row { FloatingBackButton { navController.popBackStack() }; Spacer(Modifier.width(12.dp)); Text("Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         Spacer(Modifier.height(18.dp))
