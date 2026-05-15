@@ -14,7 +14,6 @@ import { Tracker } from "./components/wv/screens/Tracker";
 import { Brain } from "./components/wv/screens/Brain";
 import { SettingsScreen } from "./components/wv/screens/Settings";
 import type { Media } from "./data";
-import { Sun, Moon } from "lucide-react";
 import { ArtworkProvider, DynamicBackdrop } from "./components/wv/artwork";
 import { PrefsProvider, usePrefs } from "./components/wv/prefs";
 import { LiveDataProvider } from "./services/liveData";
@@ -73,12 +72,7 @@ function AppInner() {
       case "calendar":
         return <CalendarScreen />;
       case "profile":
-        return (
-          <Profile
-            onSettings={() => setOverlay("settings")}
-            onBrain={() => setOverlay("brain")}
-          />
-        );
+        return <Profile onSettings={() => setOverlay("settings")} onBrain={() => setOverlay("brain")} />;
     }
   };
 
@@ -95,15 +89,6 @@ function AppInner() {
         paddingRight: "env(safe-area-inset-right)",
       }}
     >
-      <button
-        onClick={() => setTheme(theme === "amoled" ? "dark" : "amoled")}
-        className="fixed top-5 right-5 z-50 w-11 h-11 rounded-full bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center text-white"
-        style={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
-        aria-label="Toggle theme"
-      >
-        {theme === "amoled" ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
-
       <div className="relative w-full h-full overflow-hidden" style={{ background: appBg }}>
         <DynamicBackdrop theme={theme} />
 
