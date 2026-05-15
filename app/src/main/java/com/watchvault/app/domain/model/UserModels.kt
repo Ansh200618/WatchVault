@@ -72,12 +72,27 @@ data class WatchGoal(
 
 data class WatchEvent(
     val id: Long,
+    val mediaId: Long = 0L,
     val eventType: WatchEventType,
     val eventDate: String,
     val title: String,
-    val description: String,
-    val mediaId: Long = 0L
-)
+    val description: String
+) {
+    constructor(
+        id: Long,
+        eventType: WatchEventType,
+        eventDate: String,
+        title: String,
+        description: String
+    ) : this(
+        id = id,
+        mediaId = 0L,
+        eventType = eventType,
+        eventDate = eventDate,
+        title = title,
+        description = description
+    )
+}
 
 data class WatchBrainInsight(
     val id: Long,
