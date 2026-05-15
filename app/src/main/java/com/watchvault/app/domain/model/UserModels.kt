@@ -72,11 +72,11 @@ data class WatchGoal(
 
 data class WatchEvent(
     val id: Long,
-    val mediaId: Long = 0L,
     val eventType: WatchEventType,
     val eventDate: String,
     val title: String,
-    val description: String
+    val description: String,
+    val mediaId: Long = 0L
 )
 
 data class WatchBrainInsight(
