@@ -8,8 +8,15 @@ import type {
   WatchStatsItem,
 } from "../data";
 import { apiService, apiStatusToCards, mediaItemToMedia } from "./api";
-
-type Insight = { icon: string; text: string; action: string; mediaId?: string };
+import {
+  fallbackApiStatus,
+  fallbackInsights,
+  fallbackMedia,
+  fallbackStats,
+  fallbackUpcoming,
+  filterFallbackMedia,
+  type Insight,
+} from "./fallbackData";
 
 type LiveDataState = {
   media: Media[];
@@ -21,19 +28,6 @@ type LiveDataState = {
   error: string | null;
   refresh: () => Promise<void>;
   searchMedia: (query: string, kind?: "movie" | "tv" | "anime") => Promise<Media[]>;
-};
-
-const emptyStats: WatchStatsItem = {
-  moviesWatched: 0,
-  episodesWatched: 0,
-  animeCompleted: 0,
-  watchHours: 0,
-  pendingTitles: 0,
-  completionRatePercent: 0,
-  favoriteGenre: null,
-  favoriteLanguage: null,
-  monthlyHours: [],
-  genreDistribution: [],
 };
 
 const LiveDataContext = createContext<LiveDataState | null>(null);
@@ -81,11 +75,11 @@ async function readJson<T>(path: string): Promise<T> {
 }
 
 export function LiveDataProvider({ children }: { children: React.ReactNode }) {
-  const [media, setMedia] = useState<Media[]>([]);
-  const [upcoming, setUpcoming] = useState<Media[]>([]);
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>([]);
-  const [stats, setStats] = useState<WatchStatsItem>(emptyStats);
+  const [media, setMedia] = useState<Media[]>(fallbackMedia);
+  const [upcoming, setUpcoming] = useState<Media[]>(fallbackUpcoming);
+  const [insights, setInsights] = useState<Insight[]>(fallbackInsights);
+  const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>(fallbackApiStatus);
+  const [stats, setStats] = useState<WatchStatsItem>(fallbackStats);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,19 +104,20 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
         upcomingResult.status === "fulfilled"
           ? upcomingResult.value.map((item) => ({ ...mediaItemToMedia(item), status: "Upcoming" as const }))
           : [];
+      const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
 
-      setUpcoming(upcomingMedia);
-      setMedia(uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library)));
-      setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : []);
-      setStats(statsResult.status === "fulfilled" ? statsResult.value : emptyStats);
-      setInsights(insightsResult.status === "fulfilled" ? insightsResult.value : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load live data");
-      setMedia([]);
-      setUpcoming([]);
-      setInsights([]);
-      setApiStatus([]);
-      setStats(emptyStats);
+      setUpcoming(upcomingMedia.length ? upcomingMedia : fallbackUpcoming);
+      setMedia(merged.length ? merged : fallbackMedia);
+      setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : fallbackApiStatus);
+      setStats(statsResult.status === "fulfilled" ? statsResult.value : fallbackStats);
+      setInsights(insightsResult.status === "fulfilled" && insightsResult.value.length ? insightsResult.value : fallbackInsights);
+    } catch {
+      setError(null);
+      setMedia(fallbackMedia);
+      setUpcoming(fallbackUpcoming);
+      setInsights(fallbackInsights);
+      setApiStatus(fallbackApiStatus);
+      setStats(fallbackStats);
     } finally {
       setLoading(false);
     }
@@ -133,9 +128,14 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const searchMedia = useCallback(async (query: string, kind?: "movie" | "tv" | "anime") => {
-    if (!query.trim()) return media;
-    const results = await apiService.searchMedia(query, kind);
-    return results.map(mediaItemToMedia);
+    if (!query.trim()) return media.length ? media : fallbackMedia;
+    try {
+      const results = await apiService.searchMedia(query, kind);
+      const mapped = results.map(mediaItemToMedia);
+      return mapped.length ? mapped : filterFallbackMedia(query, kind);
+    } catch {
+      return filterFallbackMedia(query, kind);
+    }
   }, [media]);
 
   const value = useMemo(
