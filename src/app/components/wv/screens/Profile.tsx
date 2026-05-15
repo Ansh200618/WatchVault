@@ -2,10 +2,14 @@ import { useState } from "react";
 import { Settings, ChevronRight, Sparkles } from "lucide-react";
 import { BarChart, Bar, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, XAxis } from "recharts";
 import { useLiveData } from "../../../services/liveData";
+import { usePrefs } from "../prefs";
 
 export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBrain: () => void }) {
   const { insights, stats } = useLiveData();
+  const { prefs } = usePrefs();
   const [recapOpen, setRecapOpen] = useState(false);
+  const displayName = prefs.name?.trim() || "Ansh";
+  const initial = displayName.charAt(0).toUpperCase() || "A";
 
   const statCards = [
     { label: "Movies watched", value: stats.moviesWatched },
@@ -21,11 +25,11 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
       <div className="px-5 pt-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-full bg-[#D9A441] flex items-center justify-center text-white" style={{ fontSize: 20, fontWeight: 700 }}>
-            A
+            {initial}
           </div>
           <div>
             <div className="text-[#111] dark:text-white" style={{ fontSize: 20, fontWeight: 700 }}>
-              Ansh
+              {displayName}
             </div>
             <div className="text-[#666666]" style={{ fontSize: 12 }}>
               Real library stats
