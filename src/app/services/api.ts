@@ -1,7 +1,7 @@
 import { MediaItem, MediaKind, LibraryStatus, type Media, type ApiStatusItem, type UserLibraryItem, type WatchStatsItem } from '../data';
 
-// Base URL for backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Public backend used by production APK builds. VITE_API_BASE_URL can still override this.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://watchvault-backend-2lrv.onrender.com/api').replace(/\/$/, '');
 
 /**
  * API Service for communicating with WatchVault backend
@@ -32,7 +32,7 @@ export const apiService = {
   },
 
   getMediaById: async (id: string): Promise<MediaItem> => {
-    const response = await fetch(`${API_BASE_URL}/media/${id}`);
+    const response = await fetch(`${API_BASE_URL}/media/${encodeURIComponent(id)}`);
     if (!response.ok) throw new Error('Failed to fetch media details');
     return response.json();
   },
@@ -51,7 +51,7 @@ export const apiService = {
   },
 
   updateLibraryItem: async (mediaId: string, updates: Partial<{ status: LibraryStatus; progressPercent: number; lastEpisode: { season: number; episode: number } | null; rating: number | null; notes: string | null; media: MediaItem | null }>) => {
-    const response = await fetch(`${API_BASE_URL}/user/library/${mediaId}`, {
+    const response = await fetch(`${API_BASE_URL}/user/library/${encodeURIComponent(mediaId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
@@ -71,7 +71,7 @@ export const apiService = {
   },
 
   getSeasonEpisodes: async (mediaId: string, seasonNumber: number) => {
-    const response = await fetch(`${API_BASE_URL}/media/${mediaId}/season/${seasonNumber}`);
+    const response = await fetch(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/season/${seasonNumber}`);
     if (!response.ok) throw new Error('Failed to fetch season episodes');
     return response.json();
   },
@@ -145,7 +145,7 @@ export function mediaItemToMedia(item: MediaItem): Media {
     overview: item.overview || 'No overview available.',
     releaseDate: releaseDate || undefined,
     status: undefined,
-    providers: item.providers.map((provider) => provider.name),
+    providers: item.providers.map((provider: any) => provider.name || provider.providerName).filter(Boolean),
     ratings: item.ratings,
     trailerUrl: item.trailerUrl,
     seasonDetails:
