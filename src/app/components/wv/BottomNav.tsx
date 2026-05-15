@@ -14,12 +14,12 @@ const TABS: { id: Tab; label: string; Icon: any }[] = [
 export function BottomNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const { color } = useArtwork();
   return (
-    <div className="absolute left-5 right-5 bottom-4 z-20">
+    <div className="absolute left-5 right-5 z-20" style={{ bottom: "calc(env(safe-area-inset-bottom) + 14px)" }}>
       <div
         style={{
           borderRadius: 32,
           height: 72,
-          background: "rgba(10,10,14,0.45)",
+          background: "rgba(10,10,14,0.72)",
           backdropFilter: "blur(28px) saturate(180%)",
           WebkitBackdropFilter: "blur(28px) saturate(180%)",
           border: "1px solid rgba(255,255,255,0.14)",
@@ -41,6 +41,7 @@ export function BottomNav({ active, onChange }: { active: Tab; onChange: (t: Tab
                   border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid transparent",
                   boxShadow: isActive ? `0 8px 18px -6px ${rgbToCss(color, 0.55)}` : "none",
                 }}
+                aria-label={label}
               >
                 <div className="relative">
                   <Icon
