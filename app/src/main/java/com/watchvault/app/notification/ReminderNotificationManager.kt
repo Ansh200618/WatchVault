@@ -52,13 +52,13 @@ class ReminderNotificationManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentTitle("New release reminder")
             .setContentText("$title releases today.")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$title releases today."))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .addAction(R.drawable.ic_launcher, "Open Details", pendingIntent)
+            .addAction(R.drawable.ic_launcher_monochrome, "Open Details", pendingIntent)
             .build()
 
         NotificationManagerCompat.from(context).notify(mediaId.toInt(), notification)
