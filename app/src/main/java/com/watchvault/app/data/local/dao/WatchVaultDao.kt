@@ -12,6 +12,7 @@ abstract class WatchVaultDao {
     @Query("SELECT * FROM seasons WHERE mediaId = :mediaId ORDER BY seasonNumber") abstract fun observeSeasons(mediaId: Long): Flow<List<SeasonEntity>>
     @Query("SELECT * FROM episodes WHERE mediaId = :mediaId ORDER BY seasonNumber, episodeNumber") abstract fun observeEpisodes(mediaId: Long): Flow<List<EpisodeEntity>>
     @Query("SELECT * FROM episodes ORDER BY seasonNumber, episodeNumber") abstract fun observeAllEpisodes(): Flow<List<EpisodeEntity>>
+    fun observeEpisodes(): Flow<List<EpisodeEntity>> = observeAllEpisodes()
     @Query("SELECT * FROM user_media_status") abstract fun observeStatuses(): Flow<List<UserMediaStatusEntity>>
     @Query("SELECT * FROM user_media_status WHERE mediaId = :mediaId") abstract fun observeStatus(mediaId: Long): Flow<UserMediaStatusEntity?>
     @Query("SELECT * FROM reminders") abstract fun observeReminders(): Flow<List<ReminderEntity>>
