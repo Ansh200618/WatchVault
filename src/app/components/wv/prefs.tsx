@@ -20,11 +20,11 @@ type Ctx = {
 };
 
 const DEFAULT: UserPrefs = {
-  name: "Watcher",
+  name: "Ansh",
   regionCode: "IN",
   regionName: "India",
-  languages: ["English"],
-  contentTypes: ["Movies"],
+  languages: ["English", "Hindi"],
+  contentTypes: ["Movies", "Series", "Anime"],
   genres: [],
   remindersEnabled: false,
   theme: "dark" as Theme,
@@ -34,10 +34,18 @@ const DEFAULT: UserPrefs = {
 const PrefsCtx = createContext<Ctx>({ prefs: DEFAULT, update: () => {} });
 const STORAGE_KEY = "watchvault:prefs";
 
+function cleanName(value: unknown): string {
+  const name = typeof value === "string" ? value.trim() : "";
+  if (!name || name.toLowerCase() === "watcher" || name.toLowerCase() === "ansb") return DEFAULT.name;
+  return name;
+}
+
 function readPrefs(): UserPrefs {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored ? { ...DEFAULT, ...JSON.parse(stored) } : DEFAULT;
+    if (!stored) return DEFAULT;
+    const parsed = JSON.parse(stored) as Partial<UserPrefs>;
+    return { ...DEFAULT, ...parsed, name: cleanName(parsed.name) };
   } catch {
     return DEFAULT;
   }
@@ -50,7 +58,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }, [prefs]);
 
   const value = useMemo(
-    () => ({ prefs, update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p })) }),
+    () => ({ prefs, update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p, name: p.name === undefined ? s.name : cleanName(p.name) })) }),
     [prefs],
   );
   return <PrefsCtx.Provider value={value}>{children}</PrefsCtx.Provider>;
