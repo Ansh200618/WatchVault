@@ -13,4 +13,14 @@
     <color name="color_card_dark">#121212</color>
     <color name="color_primary_text_dark">#FFFFFF</color>
     <color name="color_secondary_text_dark">#B0B0B0</color>
+
+    <!-- Brand colors -->
+    <color name="wv_logo_bg">#101318</color>
+    <color name="wv_logo_shield">#D3DCE4</color>
+    <color name="wv_logo_accent">#00BFA6</color>
+    <color name="wv_logo_check">#F5F7FA</color>
+    <color name="wv_logo_mono_dark">#13161B</color>
+    <color name="wv_logo_mono_light">#F3F6FA</color>
+    <color name="wv_splash_bg_light">#F7F5F3</color>
+    <color name="wv_splash_bg_dark">#000000</color>
 </resources>

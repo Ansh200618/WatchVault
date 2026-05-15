@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -19,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.watchvault.app.BuildConfig
+import com.watchvault.app.R
 import com.watchvault.app.domain.model.MediaItem
 import com.watchvault.app.presentation.components.*
 import com.watchvault.app.presentation.navigation.Screen
@@ -37,7 +40,17 @@ fun HomeScreen(navController: NavHostController, viewModel: HomeViewModel = hilt
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column { Text("Hello, Ansh", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Your premium watch tracker", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)) }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_watchvault_logo),
+                        contentDescription = "WatchVault",
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text("WatchVault", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                Text("Your premium watch tracker", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f))
+            }
             AsyncImage("https://picsum.photos/seed/ansh/80", null, contentScale = ContentScale.Crop, modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.large))
         }
         Spacer(Modifier.height(16.dp))
