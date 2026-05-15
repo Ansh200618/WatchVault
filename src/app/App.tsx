@@ -82,37 +82,30 @@ function AppInner() {
     }
   };
 
-  const phoneBg = theme === "amoled" ? "#000000" : "#07070a";
+  const appBg = theme === "amoled" ? "#000000" : "#07070a";
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center p-6" style={{ background: "linear-gradient(135deg, #0a0a0d, #1a1a22)" }}>
+    <div
+      className="fixed inset-0 w-screen h-screen overflow-hidden"
+      style={{
+        background: appBg,
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      }}
+    >
       <button
         onClick={() => setTheme(theme === "amoled" ? "dark" : "amoled")}
         className="fixed top-5 right-5 z-50 w-11 h-11 rounded-full bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center text-white"
+        style={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+        aria-label="Toggle theme"
       >
         {theme === "amoled" ? <Sun size={16} /> : <Moon size={16} />}
       </button>
 
-      <div
-        className="relative overflow-hidden shadow-2xl ring-1 ring-white/10"
-        style={{
-          width: 390,
-          height: 844,
-          borderRadius: 48,
-          background: phoneBg as string,
-        }}
-      >
+      <div className="relative w-full h-full overflow-hidden" style={{ background: appBg }}>
         <DynamicBackdrop theme={theme} />
-        <div className="absolute top-0 left-0 right-0 h-12 flex items-center justify-between px-7 z-40 pointer-events-none">
-          <span className={"text-white"} style={{ fontSize: 13, fontWeight: 600 }}>
-            9:41
-          </span>
-          <div className="w-24 h-6 rounded-full bg-black absolute left-1/2 -translate-x-1/2 top-2" />
-          <div className={`flex gap-1 items-center ${"text-white"}`} style={{ fontSize: 11 }}>
-            <span>●●●●</span>
-            <span>100%</span>
-          </div>
-        </div>
 
         <AnimatePresence mode="wait">
           {stage === "splash" && (
@@ -160,8 +153,6 @@ function AppInner() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 rounded-full bg-black/60 z-50 pointer-events-none" />
       </div>
     </div>
   );
