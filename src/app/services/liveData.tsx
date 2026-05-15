@@ -7,16 +7,9 @@ import type {
   UserLibraryItem,
   WatchStatsItem,
 } from "../data";
-import { apiService, apiStatusToCards, mediaItemToMedia } from "./api";
-import {
-  fallbackApiStatus,
-  fallbackInsights,
-  fallbackMedia,
-  fallbackStats,
-  fallbackUpcoming,
-  filterFallbackMedia,
-  type Insight,
-} from "./fallbackData";
+import { API_BASE_URL, apiService, apiStatusToCards, mediaItemToMedia } from "./api";
+
+export type Insight = { icon: string; text: string; action: string; mediaId?: string };
 
 type LiveDataState = {
   media: Media[];
@@ -28,6 +21,19 @@ type LiveDataState = {
   error: string | null;
   refresh: () => Promise<void>;
   searchMedia: (query: string, kind?: "movie" | "tv" | "anime") => Promise<Media[]>;
+};
+
+const emptyStats: WatchStatsItem = {
+  moviesWatched: 0,
+  episodesWatched: 0,
+  animeCompleted: 0,
+  watchHours: 0,
+  pendingTitles: 0,
+  completionRatePercent: 0,
+  favoriteGenre: null,
+  favoriteLanguage: null,
+  monthlyHours: [],
+  genreDistribution: [],
 };
 
 const LiveDataContext = createContext<LiveDataState | null>(null);
@@ -68,18 +74,18 @@ function mediaFromLibraryItem(item: UserLibraryItem): Media | null {
   return item.media ? mediaItemToMedia(item.media as MediaItem) : null;
 }
 
-async function readJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`Failed to fetch ${path}`);
+async function readJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`Failed to fetch ${url}`);
   return response.json();
 }
 
 export function LiveDataProvider({ children }: { children: React.ReactNode }) {
-  const [media, setMedia] = useState<Media[]>(fallbackMedia);
-  const [upcoming, setUpcoming] = useState<Media[]>(fallbackUpcoming);
-  const [insights, setInsights] = useState<Insight[]>(fallbackInsights);
-  const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>(fallbackApiStatus);
-  const [stats, setStats] = useState<WatchStatsItem>(fallbackStats);
+  const [media, setMedia] = useState<Media[]>([]);
+  const [upcoming, setUpcoming] = useState<Media[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>([]);
+  const [stats, setStats] = useState<WatchStatsItem>(emptyStats);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,10 +97,10 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
       const [popularResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
         apiService.getPopularMedia(),
         apiService.getUserLibrary(),
-        readJson<MediaItem[]>("/api/upcoming"),
-        readJson<{ apis: Record<string, string> }>("/api/status"),
+        readJson<MediaItem[]>(`${API_BASE_URL}/upcoming`),
+        readJson<{ apis: Record<string, string> }>(`${API_BASE_URL}/status`),
         apiService.getStats(),
-        readJson<Insight[]>("/api/brain/insights"),
+        readJson<Insight[]>(`${API_BASE_URL}/brain/insights`),
       ]);
 
       const popular = popularResult.status === "fulfilled" ? popularResult.value.map(mediaItemToMedia) : [];
@@ -106,18 +112,22 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
           : [];
       const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
 
-      setUpcoming(upcomingMedia.length ? upcomingMedia : fallbackUpcoming);
-      setMedia(merged.length ? merged : fallbackMedia);
-      setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : fallbackApiStatus);
-      setStats(statsResult.status === "fulfilled" ? statsResult.value : fallbackStats);
-      setInsights(insightsResult.status === "fulfilled" && insightsResult.value.length ? insightsResult.value : fallbackInsights);
-    } catch {
-      setError(null);
-      setMedia(fallbackMedia);
-      setUpcoming(fallbackUpcoming);
-      setInsights(fallbackInsights);
-      setApiStatus(fallbackApiStatus);
-      setStats(fallbackStats);
+      setUpcoming(upcomingMedia);
+      setMedia(merged);
+      setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : []);
+      setStats(statsResult.status === "fulfilled" ? statsResult.value : emptyStats);
+      setInsights(insightsResult.status === "fulfilled" ? insightsResult.value : []);
+
+      if (!merged.length && !upcomingMedia.length) {
+        setError("Live backend is connected, but it returned no titles. Check Render API keys and /api/status.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load live backend data");
+      setMedia([]);
+      setUpcoming([]);
+      setInsights([]);
+      setApiStatus([]);
+      setStats(emptyStats);
     } finally {
       setLoading(false);
     }
@@ -125,17 +135,25 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void refresh();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onOnline = () => void refresh();
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
   }, [refresh]);
 
   const searchMedia = useCallback(async (query: string, kind?: "movie" | "tv" | "anime") => {
-    if (!query.trim()) return media.length ? media : fallbackMedia;
-    try {
-      const results = await apiService.searchMedia(query, kind);
-      const mapped = results.map(mediaItemToMedia);
-      return mapped.length ? mapped : filterFallbackMedia(query, kind);
-    } catch {
-      return filterFallbackMedia(query, kind);
-    }
+    if (!query.trim()) return media;
+    const results = await apiService.searchMedia(query, kind);
+    return results.map(mediaItemToMedia);
   }, [media]);
 
   const value = useMemo(
