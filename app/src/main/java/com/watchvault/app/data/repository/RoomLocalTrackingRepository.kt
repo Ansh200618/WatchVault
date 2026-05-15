@@ -85,18 +85,51 @@ class RoomLocalTrackingRepository @Inject constructor(
         dao.observeMedia(), dao.observeAllEpisodes(), dao.observeReminders(), dao.observeStatuses()
     ) { media, episodes, reminders, statuses ->
         val releaseEvents = media.map {
-            WatchEvent(it.id * 10, it.id, WatchEventType.RELEASE_DATE, it.releaseDate, it.title, "Release date")
+            WatchEvent(
+                id = it.id * 10,
+                mediaId = it.id,
+                eventType = WatchEventType.RELEASE_DATE,
+                eventDate = it.releaseDate,
+                title = it.title,
+                description = "Release date"
+            )
         }
+
         val episodeEvents = episodes.filter { it.airDate.isNotBlank() }.map {
-            WatchEvent(10000 + it.id, it.mediaId, WatchEventType.EPISODE_DATE, it.airDate, it.title, "S${it.seasonNumber} E${it.episodeNumber}")
+            WatchEvent(
+                id = 10000 + it.id,
+                mediaId = it.mediaId,
+                eventType = WatchEventType.EPISODE_DATE,
+                eventDate = it.airDate,
+                title = it.title,
+                description = "S${it.seasonNumber} E${it.episodeNumber}"
+            )
         }
+
         val reminderEvents = reminders.map {
-            WatchEvent(20000 + it.id, it.mediaId, WatchEventType.REMINDER, it.reminderDateTime.take(10), it.mediaTitle, "Reminder")
+            WatchEvent(
+                id = 20000 + it.id,
+                mediaId = it.mediaId,
+                eventType = WatchEventType.REMINDER,
+                eventDate = it.reminderDateTime.take(10),
+                title = it.mediaTitle,
+                description = "Reminder"
+            )
         }
+
         val completedEvents = statuses.filter { it.status == UserWatchStatus.COMPLETED }.map {
-            WatchEvent(30000 + it.mediaId, it.mediaId, WatchEventType.WATCH_COMPLETED, it.updatedAt.take(10), "Completed", "You completed this title")
+            WatchEvent(
+                id = 30000 + it.mediaId,
+                mediaId = it.mediaId,
+                eventType = WatchEventType.WATCH_COMPLETED,
+                eventDate = it.updatedAt.take(10),
+                title = "Completed",
+                description = "You completed this title"
+            )
         }
-        (releaseEvents + episodeEvents + reminderEvents + completedEvents).sortedBy { it.eventDate }
+
+        (releaseEvents + episodeEvents + reminderEvents + completedEvents)
+            .sortedBy { it.eventDate }
     }
 
     override fun getWatchBrainInsights(): Flow<List<WatchBrainInsight>> = combine(getUpcoming(), getStatuses(), dao.observeEpisodes()) { upcoming, statuses, episodes ->
