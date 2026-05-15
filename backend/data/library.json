@@ -1,0 +1,86 @@
+[
+  {
+    "mediaId": "tmdb:movie:687163",
+    "status": "completed",
+    "progressPercent": 100,
+    "lastEpisode": null,
+    "rating": null,
+    "notes": null,
+    "media": {
+      "id": "tmdb:movie:687163",
+      "kind": "movie",
+      "title": "Project Hail Mary",
+      "originalTitle": "Project Hail Mary",
+      "year": 2026,
+      "posterUrl": "https://image.tmdb.org/t/p/w500/yihdXomYb5kTeSivtFndMy5iDmf.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg",
+      "overview": "Science teacher Ryland Grace wakes up on a spaceship light years from home with no recollection of who he is or how he got there. As his memory returns, he begins to uncover his mission: solve the riddle of the mysterious substance causing the sun to die out. He must call on his scientific knowledge and unorthodox ideas to save everything on Earth from extinction.",
+      "genres": [
+        "Science Fiction",
+        "Adventure"
+      ],
+      "languages": [
+        "EN"
+      ],
+      "ratings": [
+        {
+          "source": "TMDB",
+          "value": 8.5,
+          "scale": 10,
+          "votes": 3005
+        },
+        {
+          "source": "IMDb",
+          "value": 8.4,
+          "scale": 10,
+          "votes": "207,175"
+        },
+        {
+          "source": "RottenTomatoes",
+          "value": 94,
+          "scale": 100
+        },
+        {
+          "source": "Metacritic",
+          "value": 77,
+          "scale": 100
+        }
+      ],
+      "providers": [
+        {
+          "id": "10",
+          "name": "Amazon Video",
+          "logoUrl": "https://image.tmdb.org/t/p/w92/qR6FKvnPBx2O37FDg8PNM7efwF3.jpg",
+          "type": "rent",
+          "region": "US"
+        },
+        {
+          "id": "7",
+          "name": "Fandango At Home",
+          "logoUrl": "https://image.tmdb.org/t/p/w92/19fkcOz0xeUgCVW8tO85uOYnYK9.jpg",
+          "type": "rent",
+          "region": "US"
+        },
+        {
+          "id": "538",
+          "name": "Plex",
+          "logoUrl": "https://image.tmdb.org/t/p/w92/vLZKlXUNDcZR7ilvfY9Wr9k80FZ.jpg",
+          "type": "rent",
+          "region": "US"
+        },
+        {
+          "id": "10",
+          "name": "Amazon Video",
+          "logoUrl": "https://image.tmdb.org/t/p/w92/qR6FKvnPBx2O37FDg8PNM7efwF3.jpg",
+          "type": "buy",
+          "region": "US"
+        }
+      ],
+      "trailerUrl": "https://www.youtube.com/watch?v=NKYea63tQmI",
+      "runtimeMinutes": 157,
+      "releaseDate": "2026-03-15"
+    },
+    "addedAt": "2026-05-15T12:54:48.360Z",
+    "updatedAt": "2026-05-15T12:54:48.360Z"
+  }
+]

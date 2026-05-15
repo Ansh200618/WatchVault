@@ -1,0 +1,554 @@
+Design a premium native Android app UI in Figma for an application called “WatchVault”.
+
+App type:
+Native Android APK app, not a website.
+
+App purpose:
+WatchVault is a premium movie, series, anime, and episode tracking app where users can discover content, view details, track watch progress, mark episodes watched, manage upcoming releases, add reminders, and view personal stats.
+
+Design style:
+Use Material Design 3 / Material You principles with a premium SaaS-style entertainment layout.
+
+Overall look:
+- Clean premium Android UI
+- Soft off-white background
+- Large rounded cards
+- Black primary buttons
+- Smooth pill filters
+- Floating content panels
+- Cinematic poster-based layout
+- Minimal luxury feel
+- Clean spacing
+- Rounded bottom navigation
+- Modern app-store-quality interface
+- Native Android mobile layout only
+- No website-style layout
+
+Theme:
+Create both Light and Dark versions.
+
+Default Light Theme:
+- Background: #F8F6F1
+- Surface/Card: #FFFFFF
+- Primary text: #111111
+- Secondary text: #6E6E6E
+- Primary button: #111111
+- Button text: #FFFFFF
+- Accent: #1DBFA7 or #14A890
+- Soft border: #E8E3D8
+- Warning/upcoming accent: #FFB84D
+
+Dark / AMOLED Theme:
+- Background: #000000
+- Surface/Card: #101010
+- Primary text: #FFFFFF
+- Secondary text: #A5A5A5
+- Primary button: #FFFFFF
+- Button text: #000000
+- Accent: #1DBFA7
+- Border: #242424
+
+Typography:
+Use a modern sans-serif font like Inter, SF Pro, or Google Sans style.
+
+Text sizes:
+- Large screen title: 28sp bold
+- Section heading: 20sp semi-bold
+- Card title: 16sp semi-bold
+- Body text: 14sp regular
+- Metadata text: 12sp medium
+- Button text: 14sp semi-bold
+- Bottom nav label: 11sp medium
+
+Corner radius:
+- Main cards: 28dp
+- Poster cards: 24dp
+- Buttons: 50dp pill
+- Filter chips: 50dp pill
+- Bottom navigation: 32dp
+- Small icon buttons: circular
+
+Create a complete Figma design system first.
+
+Design system pages:
+1. Colors
+2. Typography
+3. Icons
+4. Components
+5. Screens
+6. Prototype Flow
+
+Required reusable components:
+- App logo header
+- Search bar
+- Filter chip
+- Media poster card
+- Featured media card
+- Continue watching card
+- Rating card
+- Status chip
+- Progress pill
+- Animated-style progress bar
+- Episode row
+- Season accordion
+- Reminder button
+- Watch provider card
+- Language card
+- Stats card
+- Empty state card
+- Bottom navigation bar
+- Floating back button
+- Floating favorite button
+- Primary button
+- Secondary button
+- Calendar date cell
+- Watch Brain insight card
+
+Bottom navigation:
+Create a premium rounded bottom navigation bar fixed at the bottom.
+
+Use 5 tabs:
+1. Home
+Icon: home
+Label: Home
+
+2. Discover
+Icon: search/explore
+Label: Discover
+
+3. Library
+Icon: bookmark/library
+Label: Library
+
+4. Calendar
+Icon: calendar
+Label: Calendar
+
+5. Profile
+Icon: user/profile
+Label: Profile
+
+Bottom nav style:
+- Black rounded pill container in light mode
+- White active icon
+- Muted gray inactive icons
+- Active tab has small glowing accent dot or soft pill highlight
+- Icons should be minimal line icons
+- Height around 72dp
+- Horizontal margin 20dp
+- Bottom margin 16dp
+- Floating above the background with soft shadow
+
+Screen size:
+Design for Android mobile frame:
+- 390 x 844 px
+Also create responsive notes for:
+- 360 x 800
+- 412 x 915
+
+SCREEN 1: Splash Screen
+Design:
+- Soft off-white background
+- Center premium WatchVault logo
+- Small subtitle: “Track every story you watch”
+- Minimal loading indicator
+- Clean cinematic feel
+
+SCREEN 2: Onboarding Screen
+Purpose:
+Explain app value in 3 slides.
+
+Slide 1:
+Title: “Track movies, series & anime”
+Subtitle: “Keep your watch progress organized in one premium library.”
+Visual: stacked poster cards
+
+Slide 2:
+Title: “Never miss an episode”
+Subtitle: “Mark episodes, seasons, and full shows as watched.”
+Visual: episode checklist card
+
+Slide 3:
+Title: “Upcoming reminders”
+Subtitle: “Get notified before new releases arrive.”
+Visual: calendar/reminder card
+
+Button:
+“Get Started”
+
+SCREEN 3: Home Screen
+This is the main premium dashboard.
+
+Layout:
+Top section:
+- Greeting: “Hello, Ansh”
+- Subtitle: “What are you watching today?”
+- Profile avatar on top-right
+- Notification/reminder icon
+
+Search:
+- Rounded search bar
+- Placeholder: “Search movies, series, anime”
+
+Filter chips:
+- All
+- Movies
+- Series
+- Anime
+- Upcoming
+
+Featured card:
+Large rounded cinematic poster card.
+Overlay:
+- Title
+- Rating
+- Type chip
+- Year
+- Progress or status
+- Black/white circular arrow button
+
+Sections:
+1. Continue Watching
+Horizontal cards showing:
+- Poster
+- Title
+- Last watched episode
+- Progress bar
+- Resume button
+
+2. Trending Now
+Horizontal poster cards:
+- Poster
+- Title
+- Rating
+- Type
+
+3. Upcoming Releases
+Cards showing:
+- Poster
+- Release date
+- Countdown
+- Reminder button
+
+4. Watch Brain
+Insight card:
+“You have 4 pending episodes today”
+
+SCREEN 4: Discover Screen
+Purpose:
+Search and filter real content.
+
+Top:
+- Page title: “Discover”
+- Search bar
+
+Filters:
+- All
+- Movies
+- Series
+- Anime
+- Upcoming
+- Language
+- Genre
+- Rating
+- Provider
+
+Content:
+Grid/list toggle.
+Default grid with 2 columns.
+
+Media card should show:
+- Poster
+- Title
+- Year
+- Type chip
+- Rating
+- Small bookmark icon
+
+States:
+- Loading shimmer
+- Empty state
+- Error state
+- Search result state
+
+SCREEN 5: Detail Screen
+This is the premium cinematic content page.
+
+Layout:
+Top:
+- Large banner image covering top 40% screen
+- Floating circular back button top-left
+- Floating circular favorite button top-right
+- Gradient overlay on banner
+
+Floating white panel:
+- Rounded top corners 32dp
+- Title
+- Original title smaller
+- Type chip
+- Year
+- Runtime
+- Language
+- Status
+
+Rating row:
+Small horizontal cards:
+- TMDB
+- IMDb
+- Tomato
+- User
+
+Actions:
+- Primary black button: “Add to Library”
+- Secondary button: “Watch Trailer”
+- Reminder button if upcoming
+
+Overview:
+- Short paragraph
+- Read more option
+
+Info sections:
+- Genres
+- Release Date
+- Languages
+- Where to Watch
+- Cast
+- Similar Titles
+
+For series/anime:
+Show progress card:
+- Progress percentage
+- Last watched episode
+- Button: “Open Episode Tracker”
+
+SCREEN 6: Episode Tracker Screen
+Purpose:
+Track season and episode progress.
+
+Top:
+- Back button
+- Title
+- Small poster thumbnail
+- Progress percentage
+- Status chip
+
+Tabs:
+- Seasons
+- Episodes
+- Progress
+
+Season accordion:
+Each season card:
+- Season number
+- Episode count
+- Completed percentage
+- Mark Season Watched button
+- Expand/collapse arrow
+
+Episode row:
+- Thumbnail
+- S1 E1 label
+- Episode title
+- Air date
+- Runtime
+- Watched checkbox
+- Expand arrow
+
+Sticky bottom actions:
+- Mark All Watched
+- Reset Progress
+
+Dialog design:
+When marking a later episode watched:
+Title: “Mark previous episodes as watched too?”
+Buttons:
+- Yes, mark previous
+- No, only this episode
+
+SCREEN 7: Library Screen
+Purpose:
+User’s saved local watch library.
+
+Top:
+- Title: “My Library”
+- Search icon
+- Sort/filter icon
+
+Tabs:
+- Watching
+- Plan
+- Completed
+- Dropped
+- On Hold
+- Favorites
+
+Library card:
+- Poster
+- Title
+- Type
+- Status chip
+- Progress bar
+- Last watched episode
+- Quick action button
+
+Empty state:
+“Your library is empty”
+Button: “Discover Titles”
+
+SCREEN 8: Upcoming Screen
+Purpose:
+Release tracking and reminders.
+
+Top:
+- Title: “Upcoming”
+- Calendar shortcut icon
+
+Filters:
+- Movies
+- Series
+- Anime
+- This Week
+- This Month
+- Language
+- Provider
+
+Upcoming card:
+- Poster
+- Title
+- Type
+- Release date
+- Countdown badge
+- Language
+- Region
+- Reminder button
+
+Reminder bottom sheet:
+Options:
+- On release day
+- 1 day before
+- 3 days before
+- 1 week before
+- Custom date/time
+
+SCREEN 9: Calendar Screen
+Purpose:
+Watch calendar and reminder planner.
+
+Top:
+- Month selector
+- Today button
+
+Calendar:
+- Clean monthly calendar grid
+- Dots under dates with events
+- Accent dot for reminders
+- Gray dot for watched days
+
+Bottom panel:
+Selected date events:
+- Upcoming release
+- Reminder
+- Completed episode/movie
+
+SCREEN 10: Profile / Stats Screen
+Purpose:
+Personal watch dashboard.
+
+Top:
+- Avatar
+- Username: “Ansh”
+- Subtitle: “Your watch journey”
+
+Stats grid:
+- Movies watched
+- Episodes watched
+- Anime completed
+- Watch hours
+- Pending titles
+- Completion rate
+
+Charts:
+- Monthly watch graph
+- Genre distribution
+- Language distribution
+
+Year recap card:
+“Your 2026 Watch Wrapped”
+Button: “View Recap”
+
+SCREEN 11: Watch Brain Screen / Section
+Purpose:
+Smart assistant-style insights.
+
+Cards:
+- “You have 4 pending episodes today”
+- “This movie releases tomorrow”
+- “You haven’t continued this series for 18 days”
+- “Your top genre this month is Thriller”
+- “You can finish this season in 2 hours”
+
+Design:
+- Premium cards
+- Small icon
+- Short insight
+- Suggested action button
+
+SCREEN 12: Settings Screen
+Options:
+- Theme: Light / Dark / AMOLED
+- Notification reminders
+- Default region
+- Preferred languages
+- Backup data
+- Import data
+- Clear local data
+- API status
+- About WatchVault
+
+Add TMDB attribution in About:
+“This product uses the TMDB API but is not endorsed or certified by TMDB.”
+
+Interaction/prototype requirements:
+Create clickable prototype links:
+- Splash → Onboarding → Home
+- Home → Detail
+- Detail → Episode Tracker
+- Home → Discover
+- Discover → Detail
+- Home → Upcoming
+- Upcoming → Reminder bottom sheet
+- Bottom nav links to all 5 main tabs
+- Library item → Detail
+- Calendar event → Detail
+- Profile → Settings
+
+Visual quality rules:
+- No messy layout
+- No website-style sections
+- No tiny unreadable text
+- No random placeholder blocks
+- No copied brand UI
+- No piracy/streaming UI
+- No fake play-screen layout
+- Make it feel like a premium Android app ready for Play Store screenshots
+
+Figma deliverable:
+Create clean frames named:
+01 Splash
+02 Onboarding
+03 Home
+04 Discover
+05 Detail
+06 Episode Tracker
+07 Library
+08 Upcoming
+09 Calendar
+10 Profile Stats
+11 Watch Brain
+12 Settings
+13 Components
+14 Design System
+
+Use realistic movie/series/anime poster placeholders, but do not use copyrighted logos or copied brand assets.
+Use neutral placeholder posters if needed.
+The final design should feel premium, minimal, cinematic, and fully native Android.
