@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Film, CheckCircle2, CalendarClock, MapPin, Bell, Sparkles, ChevronRight } from "lucide-react";
+import { Film, CheckCircle2, CalendarClock, MapPin, Bell, Sparkles, ChevronRight, Shuffle, ShieldCheck } from "lucide-react";
 import { GlassPanel, GlassButton, GlassChip } from "../glass";
 import { usePrefs, REGIONS, LANGUAGES, CONTENT_TYPES, GENRES, type Theme } from "../prefs";
 import { requestReminderPermission } from "../../../services/notifications";
@@ -17,7 +17,17 @@ type Step =
 
 const STEP_ORDER: Step[] = ["intro", "name", "region", "language", "content", "genres", "notifications", "theme"];
 
+const RANDOM_NAMES = [
+  "Vault Seeker", "Cine Hunter", "Anime Keeper", "Episode Pilot", "Movie Monk", "Watch Nomad",
+  "Series Scout", "Poster Ghost", "Reel Ranger", "Frame Keeper", "Cinema Fox", "Vault Rider",
+];
+
+function randomName() {
+  return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+}
+
 const INTRO_SLIDES = [
+  { Icon: ShieldCheck, title: "Welcome to WatchVault", sub: "Your cinematic vault for tracking movies, series, anime, episodes, and upcoming releases." },
   { Icon: Film, title: "Track movies, series & anime", sub: "Keep your watch progress organized in one premium library." },
   { Icon: CheckCircle2, title: "Never lose episode progress", sub: "Mark episodes, seasons, and full shows as watched." },
   { Icon: CalendarClock, title: "Get release reminders", sub: "Know when your next movie, episode, or anime season is coming." },
@@ -27,7 +37,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const { prefs, update } = usePrefs();
   const [step, setStep] = useState<Step>("intro");
   const [introIdx, setIntroIdx] = useState(0);
-  const [name, setName] = useState(prefs.name === "Watcher" ? "" : prefs.name);
+  const [name, setName] = useState(prefs.name || randomName());
 
   const stepIndex = STEP_ORDER.indexOf(step);
   const next = () => {
@@ -141,7 +151,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             className="w-full"
             style={{ width: "100%" }}
             onClick={() => {
-              if (step === "name") update({ name: name.trim() || "Watcher" });
+              if (step === "name") update({ name: name.trim() || randomName() });
               next();
             }}
           >
@@ -171,7 +181,16 @@ function IntroPane({ idx }: { idx: number }) {
   return (
     <div className="flex flex-col items-center justify-center text-center pt-6">
       <GlassPanel className="w-56 h-56 flex items-center justify-center mb-10" radius={36}>
-        <Icon size={72} className="text-white" strokeWidth={1.4} />
+        {idx === 0 ? (
+          <div className="flex flex-col items-center">
+            <div className="w-24 h-24 rounded-[28px] bg-white flex items-center justify-center text-black shadow-2xl" style={{ fontSize: 44, fontWeight: 900, letterSpacing: -4 }}>
+              WV
+            </div>
+            <div className="mt-4 text-white" style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.5 }}>WatchVault</div>
+          </div>
+        ) : (
+          <Icon size={72} className="text-white" strokeWidth={1.4} />
+        )}
       </GlassPanel>
       <div className="text-white px-4" style={{ fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
         {title}
@@ -186,8 +205,8 @@ function IntroPane({ idx }: { idx: number }) {
 function NamePane({ name, setName }: { name: string; setName: (n: string) => void }) {
   return (
     <div>
-      <PaneHeader title="What should we call you?" sub="We'll use your name to personalize greetings and stats." />
-      <GlassPanel className="px-4 py-3" radius={20}>
+      <PaneHeader title="What should we call you?" sub="Choose a name or generate a random WatchVault name." />
+      <GlassPanel className="px-4 py-3 flex items-center gap-2" radius={20}>
         <input
           autoFocus
           value={name}
@@ -196,9 +215,17 @@ function NamePane({ name, setName }: { name: string; setName: (n: string) => voi
           className="w-full bg-transparent outline-none text-white placeholder:text-white/40"
           style={{ fontSize: 16, fontWeight: 500 }}
         />
+        <button
+          type="button"
+          onClick={() => setName(randomName())}
+          className="w-10 h-10 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white"
+          aria-label="Generate random name"
+        >
+          <Shuffle size={16} />
+        </button>
       </GlassPanel>
       <div className="mt-3 text-white/55" style={{ fontSize: 12 }}>
-        Skip to use the default name "Watcher".
+        Leaving it blank will generate a random name automatically.
       </div>
     </div>
   );
