@@ -2,10 +2,10 @@
   "name": "watchvault-backend",
   "version": "1.0.0",
   "description": "Backend API for WatchVault movie/anime tracking app",
-  "main": "server.js",
+  "main": "server-user-wrapper.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node server-user-wrapper.js",
+    "dev": "nodemon server-user-wrapper.js",
     "build": "echo \"No backend build step required\"",
     "test": "jest"
   },
