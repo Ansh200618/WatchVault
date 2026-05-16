@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 
@@ -22,16 +23,18 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     private static final int WATCHVAULT_SYSTEM_BAR_COLOR = Color.rgb(7, 10, 12);
     private ActivityResultLauncher<String> notificationPermissionLauncher;
+    private String pendingNotificationCallbackId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         notificationPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
-                isGranted -> {}
+                isGranted -> dispatchNotificationPermissionResult(isGranted)
         );
         configureSystemBars();
         configureWebPermissions();
+        configureNotificationBridge();
         configureBackNavigation();
     }
 
@@ -72,13 +75,68 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                        && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-                }
                 request.grant(request.getResources());
             }
         });
+    }
+
+    private void configureNotificationBridge() {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        getBridge().getWebView().addJavascriptInterface(new NativeNotificationBridge(), "WatchVaultNativeNotifications");
+    }
+
+    private String getNotificationPermissionState() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return "granted";
+        }
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                ? "granted"
+                : "prompt";
+    }
+
+    private void requestNativeNotificationPermission(String callbackId) {
+        pendingNotificationCallbackId = callbackId;
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            dispatchNotificationPermissionResult(true);
+            return;
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            dispatchNotificationPermissionResult(true);
+            return;
+        }
+
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+    }
+
+    private void dispatchNotificationPermissionResult(boolean enabled) {
+        if (pendingNotificationCallbackId == null || getBridge() == null || getBridge().getWebView() == null) return;
+
+        String callbackId = pendingNotificationCallbackId;
+        pendingNotificationCallbackId = null;
+        String state = enabled ? "granted" : "denied";
+        String script = "window.__watchvaultNotificationCallbacks && " +
+                "window.__watchvaultNotificationCallbacks['" + escapeJs(callbackId) + "'] && " +
+                "window.__watchvaultNotificationCallbacks['" + escapeJs(callbackId) + "'](" + enabled + ", '" + state + "');";
+
+        runOnUiThread(() -> getBridge().getWebView().evaluateJavascript(script, null));
+    }
+
+    private String escapeJs(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    public class NativeNotificationBridge {
+        @JavascriptInterface
+        public String getPermissionState() {
+            return getNotificationPermissionState();
+        }
+
+        @JavascriptInterface
+        public void requestPermission(String callbackId) {
+            runOnUiThread(() -> requestNativeNotificationPermission(callbackId));
+        }
     }
 
     private void configureSystemBars() {
