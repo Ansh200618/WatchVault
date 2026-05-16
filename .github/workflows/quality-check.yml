@@ -71,15 +71,16 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Android debug build
+      - name: Android release compile verification only
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          ./gradlew compileReleaseJavaWithJavac --stacktrace --no-daemon
 
-      - name: Upload APK artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: WatchVault-quality-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify no debug APK artifact exists
+        run: |
+          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "Debug APK must not be produced or uploaded by quality workflow."
+            exit 1
+          fi
+          echo "Quality workflow passed without producing a debug APK artifact."
