@@ -28,6 +28,16 @@ declare global {
   }
 }
 
+function mergeProgressFields(fresh: Media, current: Media | null): Media {
+  if (!current || fresh.id !== current.id) return fresh;
+  return {
+    ...fresh,
+    status: current.status ?? fresh.status,
+    progress: current.progress ?? fresh.progress,
+    lastEpisode: current.lastEpisode ?? fresh.lastEpisode,
+    watchedEpisodes: (current as any).watchedEpisodes ?? (fresh as any).watchedEpisodes,
+  } as Media;
+}
 export default function App() {
   return (
     <PrefsProvider>
@@ -173,10 +183,17 @@ function AppInner() {
     setOverlay("detail");
     setExitMessage(false);
     apiService.getMediaById(m.id)
-      .then((item) => setSelected(mediaItemToMedia(item)))
+      .then((item) => {
+        const fresh = mediaItemToMedia(item);
+        setSelected((current) => mergeProgressFields(fresh, current || m));
+      })
       .catch(() => {
         // Keep the already selected list item if the detail API is unavailable.
       });
+  };
+
+  const updateSelectedProgress = (patch: Partial<Media>) => {
+    setSelected((current) => current ? ({ ...current, ...patch } as Media) : current);
   };
 
   const renderTab = () => {
@@ -237,7 +254,7 @@ function AppInner() {
           )}
           {overlay === "tracker" && selected && (
             <motion.div key="tracker" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <Tracker m={selected} onBack={() => setOverlay("detail")} />
+              <Tracker m={selected} onBack={() => setOverlay("detail")} onProgressChange={updateSelectedProgress} />
             </motion.div>
           )}
           {overlay === "brain" && (

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 export type Theme = "light" | "dark" | "amoled";
 
 export type UserPrefs = {
+  userId: string;
   name: string;
   regionCode: string;
   regionName: string;
@@ -20,20 +21,32 @@ type Ctx = {
   reset: () => void;
 };
 
-const DEFAULT: UserPrefs = {
-  name: "",
-  regionCode: "IN",
-  regionName: "India",
-  languages: ["English", "Hindi"],
-  contentTypes: ["Movies", "Series", "Anime"],
-  genres: [],
-  remindersEnabled: false,
-  theme: "dark" as Theme,
-  onboarded: false,
-};
-
-const PrefsCtx = createContext<Ctx>({ prefs: DEFAULT, update: () => {}, reset: () => {} });
 const STORAGE_KEY = "watchvault:prefs";
+
+function createUserId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `wv_${crypto.randomUUID()}`;
+  }
+  return `wv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function makeDefaultPrefs(): UserPrefs {
+  return {
+    userId: createUserId(),
+    name: "",
+    regionCode: "IN",
+    regionName: "India",
+    languages: ["English", "Hindi"],
+    contentTypes: ["Movies", "Series", "Anime"],
+    genres: [],
+    remindersEnabled: false,
+    theme: "dark" as Theme,
+    onboarded: false,
+  };
+}
+
+const DEFAULT: UserPrefs = makeDefaultPrefs();
+const PrefsCtx = createContext<Ctx>({ prefs: DEFAULT, update: () => {}, reset: () => {} });
 
 function cleanName(value: unknown): string {
   const name = typeof value === "string" ? value.trim() : "";
@@ -45,11 +58,11 @@ function cleanName(value: unknown): string {
 function readPrefs(): UserPrefs {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return DEFAULT;
+    if (!stored) return makeDefaultPrefs();
     const parsed = JSON.parse(stored) as Partial<UserPrefs>;
-    return { ...DEFAULT, ...parsed, name: cleanName(parsed.name) };
+    return { ...makeDefaultPrefs(), ...parsed, userId: parsed.userId || createUserId(), name: cleanName(parsed.name) };
   } catch {
-    return DEFAULT;
+    return makeDefaultPrefs();
   }
 }
 
@@ -62,8 +75,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       prefs,
-      update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p, name: p.name === undefined ? s.name : cleanName(p.name) })),
-      reset: () => setPrefs(DEFAULT),
+      update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p, userId: p.userId || s.userId, name: p.name === undefined ? s.name : cleanName(p.name) })),
+      reset: () => setPrefs({ ...makeDefaultPrefs(), userId: prefs.userId }),
     }),
     [prefs],
   );

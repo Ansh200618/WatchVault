@@ -7,6 +7,7 @@ import { apiService } from "../../../services/api";
 import { useLiveData } from "../../../services/liveData";
 
 type TrackerTab = "Seasons" | "Episodes" | "Progress";
+type WatchedMap = Record<string, boolean>;
 type Episode = {
   id: string;
   seasonNumber: number;
@@ -17,8 +18,20 @@ type Episode = {
   stillUrl: string | null;
 };
 
+type TrackerProps = {
+  m: Media;
+  onBack: () => void;
+  onProgressChange?: (patch: Partial<Media>) => void;
+};
+
 function keyFor(s: number, e: number) {
   return `${s}-${e}`;
+}
+
+function watchedMapFromMedia(media: Media): WatchedMap | null {
+  const raw = (media as any).watchedEpisodes;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return Object.fromEntries(Object.entries(raw).filter(([, value]) => Boolean(value))) as WatchedMap;
 }
 
 function buildEpisodeSlots(media: Media, seasonNumber: number, count: number): Episode[] {
@@ -33,7 +46,7 @@ function buildEpisodeSlots(media: Media, seasonNumber: number, count: number): E
   }));
 }
 
-export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
+export function Tracker({ m, onBack, onProgressChange }: TrackerProps) {
   const { refresh } = useLiveData();
   const seasons = useMemo(() => {
     if (m.seasonDetails?.length) return m.seasonDetails;
@@ -52,7 +65,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
 
   const [tab, setTab] = useState<TrackerTab>("Seasons");
   const [seasonNumber, setSeasonNumber] = useState(seasons[0]?.seasonNumber || 1);
-  const [watched, setWatched] = useState<Record<string, boolean>>({});
+  const [watched, setWatched] = useState<WatchedMap>({});
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [episodeSource, setEpisodeSource] = useState<"provider" | "slots">("slots");
@@ -68,13 +81,19 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
   const progress = totalEpisodes ? Math.round((completed / totalEpisodes) * 100) : (m.progress ?? 0);
 
   useEffect(() => {
+    const exactWatched = watchedMapFromMedia(m);
+    if (exactWatched) {
+      setWatched(exactWatched);
+      return;
+    }
+
     const initialWatched = Math.floor(((m.progress || 0) / 100) * (totalEpisodes || 0));
     if (!initialWatched) {
       setWatched({});
       return;
     }
 
-    const next: Record<string, boolean> = {};
+    const next: WatchedMap = {};
     let remaining = initialWatched;
     for (const season of seasons) {
       for (let i = 1; i <= (season.episodeCount || 0) && remaining > 0; i += 1) {
@@ -83,7 +102,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
       }
     }
     setWatched(next);
-  }, [m.id, m.progress, seasons, totalEpisodes]);
+  }, [m.id, (m as any).watchedEpisodes, m.progress, seasons, totalEpisodes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,7 +137,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
 
   const isEpisodeWatched = (s: number, e: number) => Boolean(watched[keyFor(s, e)]);
 
-  const latestEpisodeFromWatched = (state: Record<string, boolean>) => {
+  const latestEpisodeFromWatched = (state: WatchedMap) => {
     let latest: { season: number; episode: number } | null = null;
     for (const key of Object.keys(state)) {
       if (!state[key]) continue;
@@ -130,13 +149,30 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
     return latest;
   };
 
-  const persistProgress = async (state: Record<string, boolean>) => {
-    const count = Object.values(state).filter(Boolean).length;
+  const normalizeWatched = (state: WatchedMap): WatchedMap =>
+    Object.fromEntries(Object.entries(state).filter(([, value]) => Boolean(value))) as WatchedMap;
+
+  const syncSelectedProgress = (state: WatchedMap) => {
+    const exactWatched = normalizeWatched(state);
+    const count = Object.values(exactWatched).filter(Boolean).length;
     const nextProgress = totalEpisodes ? Math.round((count / totalEpisodes) * 100) : 0;
+    const latest = latestEpisodeFromWatched(exactWatched);
+    onProgressChange?.({
+      progress: nextProgress,
+      status: nextProgress >= 100 ? "Completed" : nextProgress > 0 ? "Watching" : "Plan",
+      lastEpisode: latest ? `S${latest.season} E${latest.episode}` : undefined,
+      watchedEpisodes: exactWatched as any,
+    } as Partial<Media>);
+    return { exactWatched, nextProgress, latest };
+  };
+
+  const persistProgress = async (state: WatchedMap) => {
+    const { exactWatched, nextProgress, latest } = syncSelectedProgress(state);
     const payload = {
       status: nextProgress >= 100 ? "completed" as const : nextProgress > 0 ? "watching" as const : "plan" as const,
       progressPercent: nextProgress,
-      lastEpisode: latestEpisodeFromWatched(state),
+      lastEpisode: latest,
+      watchedEpisodes: exactWatched,
     };
 
     setSaving(true);
@@ -146,6 +182,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
         await apiService.updateLibraryItem(m.id, payload);
       } catch {
         await apiService.addLibraryItem({ mediaId: m.id, ...payload });
+        await apiService.updateLibraryItem(m.id, payload);
       }
       setSaveMessage("Progress updated");
       await refresh();
@@ -158,9 +195,10 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
     }
   };
 
-  const applyWatched = (producer: (current: Record<string, boolean>) => Record<string, boolean>) => {
+  const applyWatched = (producer: (current: WatchedMap) => WatchedMap) => {
     setWatched((current) => {
-      const next = producer(current);
+      const next = normalizeWatched(producer(current));
+      syncSelectedProgress(next);
       void persistProgress(next);
       return next;
     });
@@ -201,7 +239,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
 
   const markAllWatched = () => {
     applyWatched(() => {
-      const next: Record<string, boolean> = {};
+      const next: WatchedMap = {};
       seasons.forEach((season) => {
         for (let i = 1; i <= (season.episodeCount || 0); i += 1) next[keyFor(season.seasonNumber, i)] = true;
       });
