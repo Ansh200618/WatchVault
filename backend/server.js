@@ -91,6 +91,14 @@ function hasDetailFields(media) {
   return false;
 }
 
+function languageNamesFromTmdb(item) {
+  const spoken = Array.isArray(item.spoken_languages)
+    ? item.spoken_languages.map((language) => language.english_name || language.name || language.iso_639_1).filter(Boolean)
+    : [];
+  const original = item.original_language ? [String(item.original_language).toUpperCase()] : [];
+  return Array.from(new Set([...spoken, ...original]));
+}
+
 function mapTmdbSummary(item, fallbackKind) {
   const kind = tmdbKind(item, fallbackKind);
   const date = kind === "tv" ? item.first_air_date : item.release_date;
@@ -106,6 +114,7 @@ function mapTmdbSummary(item, fallbackKind) {
     overview: item.overview || null,
     genres: [],
     languages: item.original_language ? [String(item.original_language).toUpperCase()] : [],
+    audioLanguages: item.original_language ? [String(item.original_language).toUpperCase()] : [],
     ratings: [{ source: "TMDB", value: item.vote_average ? Number(item.vote_average.toFixed(1)) : null, scale: 10, votes: item.vote_count || null }],
     providers: [],
     trailerUrl: null,
@@ -136,10 +145,13 @@ function mapTmdbDetail(item, kind, extra = {}) {
     ...(regionProviders.buy || []).map((provider) => ({ provider, type: "buy" })),
   ];
   const ratings = [...summary.ratings, ...(extra.ratings || [])];
+  const audioLanguages = languageNamesFromTmdb(item);
 
   return cacheMedia({
     ...summary,
     genres: Array.isArray(item.genres) ? item.genres.map((genre) => genre.name).filter(Boolean) : [],
+    languages: item.original_language ? [String(item.original_language).toUpperCase()] : audioLanguages,
+    audioLanguages,
     providers: providerBuckets.map(({ provider, type }) => ({
       id: String(provider.provider_id),
       name: provider.provider_name,
@@ -191,7 +203,8 @@ function mapAniListMedia(item) {
     backdropUrl: item.bannerImage || posterUrl,
     overview: item.description ? String(item.description).replace(/<[^>]*>/g, "") : null,
     genres: item.genres || [],
-    languages: ["JP"],
+    languages: ["Japanese"],
+    audioLanguages: ["Japanese"],
     ratings: [{ source: "AniList", value: item.averageScore || null, scale: 100, votes: item.popularity || null }],
     providers: [],
     trailerUrl: item.trailer?.site === "youtube" && item.trailer?.id ? `https://www.youtube.com/watch?v=${item.trailer.id}` : null,
@@ -224,40 +237,38 @@ async function tmdbGet(endpoint, params = {}) {
     query.api_key = requireConfigValue(config.tmdbApiKey, "TMDB_API_KEY");
   }
 
-  const url = `${config.tmdbBaseUrl.replace(/\/$/, "")}/${endpoint.replace(/^\//, "")}`;
-  let lastError;
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const response = await axios.get(url, { headers, params: query, timeout: 15000 });
-      return response.data;
-    } catch (error) {
-      lastError = error;
-      if (!["ECONNRESET", "ETIMEDOUT", "ECONNABORTED"].includes(error.code)) break;
-    }
-  }
-
-  throw lastError;
+  const response = await axios.get(`${config.tmdbBaseUrl.replace(/\/$/, "")}/${endpoint}`, {
+    headers,
+    params: query,
+    timeout: 15000,
+  });
+  return response.data;
 }
 
 async function omdbRatings(imdbId) {
-  if (!imdbId || !config.omdbApiKey) return [];
-
+  if (!config.omdbApiKey || !imdbId) return [];
   try {
     const response = await axios.get(config.omdbBaseUrl, {
-      params: { i: imdbId, apikey: config.omdbApiKey },
+      params: { apikey: config.omdbApiKey, i: imdbId },
       timeout: 10000,
     });
     const data = response.data || {};
+    const imdb = data.imdbRating && data.imdbRating !== "N/A" ? Number(data.imdbRating) : null;
     const ratings = [];
 
-    if (data.imdbRating && data.imdbRating !== "N/A") {
-      ratings.push({ source: "IMDb", value: Number(data.imdbRating), scale: 10, votes: data.imdbVotes || null });
-    }
+    if (imdb) ratings.push({ source: "IMDb", value: imdb, scale: 10, votes: data.imdbVotes || null });
 
-    const rt = data.Ratings?.find((rating) => rating.Source === "Rotten Tomatoes")?.Value;
-    if (rt && rt.endsWith("%")) ratings.push({ source: "RottenTomatoes", value: Number(rt.replace("%", "")), scale: 100 });
-    if (data.Metascore && data.Metascore !== "N/A") ratings.push({ source: "Metacritic", value: Number(data.Metascore), scale: 100 });
+    (data.Ratings || []).forEach((rating) => {
+      if (rating.Source === "Rotten Tomatoes") {
+        const value = rating.Value?.endsWith("%") ? Number(rating.Value.replace("%", "")) : null;
+        ratings.push({ source: "RottenTomatoes", value, scale: 100 });
+      }
+
+      if (rating.Source === "Metacritic") {
+        const value = rating.Value?.includes("/") ? Number(rating.Value.split("/")[0]) : null;
+        ratings.push({ source: "Metacritic", value, scale: 100 });
+      }
+    });
 
     return ratings;
   } catch {
@@ -265,7 +276,7 @@ async function omdbRatings(imdbId) {
   }
 }
 
-async function anilistSearch(search, page = 1, perPage = 10) {
+async function anilistSearch(search, page = 1, perPage = 12) {
   const query = `
     query ($search: String, $page: Int, $perPage: Int) {
       Page(page: $page, perPage: $perPage) {
@@ -294,6 +305,7 @@ async function anilistSearch(search, page = 1, perPage = 10) {
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     timeout: 15000,
   });
+
   return (response.data?.data?.Page?.media || []).map(mapAniListMedia).filter(Boolean);
 }
 
