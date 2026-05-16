@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Film, PlayCircle, Tv } from "lucide-react";
 import { useLiveData } from "../../../services/liveData";
 import type { Media } from "../../../data";
 import { ImageWithFallback } from "../../figma/ImageWithFallback";
@@ -12,12 +12,41 @@ type CalendarEvent = {
   media: Media;
 };
 
-function dateKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
 function readableDate(date: Date) {
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
+function releaseLabel(media: Media) {
+  if (media.releaseType === "episode" || media.releaseType === "anime_episode") {
+    const season = media.seasonNumber ? `S${media.seasonNumber}` : null;
+    const episode = media.episodeNumber ? `E${media.episodeNumber}` : null;
+    const prefix = [season, episode].filter(Boolean).join(" ");
+    const type = media.releaseType === "anime_episode" ? "Anime episode" : "Episode release";
+    return prefix ? `${prefix} • ${type}` : type;
+  }
+
+  if (media.releaseType === "season") return "Season release";
+  return `${media.type} release`;
+}
+
+function releaseTitle(media: Media) {
+  if (media.releaseType === "episode" || media.releaseType === "anime_episode") {
+    return media.parentTitle || media.title;
+  }
+  return media.title;
+}
+
+function releaseSubtitle(media: Media) {
+  if ((media.releaseType === "episode" || media.releaseType === "anime_episode") && media.episodeTitle) {
+    return media.episodeTitle;
+  }
+  return releaseLabel(media);
+}
+
+function ReleaseIcon({ media }: { media: Media }) {
+  if (media.type === "Movie") return <Film size={15} className="text-[#D9A441]" />;
+  if (media.releaseType === "episode" || media.releaseType === "anime_episode") return <PlayCircle size={15} className="text-[#D9A441]" />;
+  return <Tv size={15} className="text-[#D9A441]" />;
 }
 
 export function CalendarScreen() {
@@ -35,13 +64,13 @@ export function CalendarScreen() {
     if (Number.isNaN(date.getTime())) return acc;
     if (date.getFullYear() !== viewDate.getFullYear() || date.getMonth() !== viewDate.getMonth()) return acc;
     const day = date.getDate();
-    acc[day] = [...(acc[day] || []), { type: "release", title: item.title, media: item }];
+    acc[day] = [...(acc[day] || []), { type: "release", title: releaseTitle(item), media: item }];
     return acc;
   }, {}), [upcoming, viewDate]);
 
   const allMonthEvents = useMemo(() => Object.entries(events)
     .flatMap(([day, items]) => items.map((item) => ({ day: Number(day), ...item })))
-    .sort((a, b) => a.day - b.day || a.title.localeCompare(b.title)), [events]);
+    .sort((a, b) => a.day - b.day || releaseTitle(a.media).localeCompare(releaseTitle(b.media))), [events]);
 
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -98,7 +127,7 @@ export function CalendarScreen() {
                   style={{ fontSize: 13, fontWeight: isSel ? 800 : 600 }}
                 >
                   {d}
-                  {ev && <div className="absolute bottom-1.5 flex gap-0.5">{ev.slice(0, 4).map((_, idx) => <div key={idx} className="w-1.5 h-1.5 rounded-full bg-[#D9A441]" />)}</div>}
+                  {ev && <div className="absolute bottom-1.5 flex gap-0.5">{ev.slice(0, 4).map((event, idx) => <div key={idx} className={`w-1.5 h-1.5 rounded-full ${event.media.releaseType === "episode" || event.media.releaseType === "anime_episode" ? "bg-white" : "bg-[#D9A441]"}`} />)}</div>}
                 </button>
               );
             })}
@@ -118,13 +147,17 @@ export function CalendarScreen() {
 
         <div className="space-y-3">
           {selectedEvents.map((e) => (
-            <div key={`${e.media.id}-${e.title}`} className="p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center gap-3" style={{ borderRadius: 24 }}>
+            <div key={`${e.media.id}-${e.title}-${e.media.seasonNumber || ""}-${e.media.episodeNumber || ""}`} className="p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center gap-3" style={{ borderRadius: 24 }}>
               <div className="w-16 h-20 rounded-2xl overflow-hidden bg-white/5 flex-shrink-0">
-                <ImageWithFallback src={e.media.poster || e.media.banner || ""} alt={e.title} className="w-full h-full object-cover" />
+                <ImageWithFallback src={e.media.poster || e.media.banner || ""} alt={releaseTitle(e.media)} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[#111] dark:text-white line-clamp-2" style={{ fontSize: 14, fontWeight: 800 }}>{e.title}</div>
-                <div className="text-[#666666] mt-1" style={{ fontSize: 11 }}>{e.media.type} release</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <ReleaseIcon media={e.media} />
+                  <div className="text-[#D9A441]" style={{ fontSize: 11, fontWeight: 800 }}>{releaseLabel(e.media)}</div>
+                </div>
+                <div className="text-[#111] dark:text-white line-clamp-2" style={{ fontSize: 14, fontWeight: 800 }}>{releaseTitle(e.media)}</div>
+                <div className="text-[#666666] mt-1 line-clamp-1" style={{ fontSize: 11 }}>{releaseSubtitle(e.media)}</div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(e.media.genres || []).slice(0, 2).map((genre) => (
                     <span key={genre} className="px-2 py-1 rounded-full bg-[#D9A441]/15 text-[#D9A441]" style={{ fontSize: 10, fontWeight: 700 }}>{genre}</span>
@@ -150,11 +183,11 @@ export function CalendarScreen() {
           <div className="text-[#111] dark:text-white mb-3" style={{ fontSize: 18, fontWeight: 800 }}>All releases this month</div>
           <div className="space-y-2">
             {allMonthEvents.map((e) => (
-              <button key={`${e.day}-${e.media.id}`} onClick={() => setSelected(e.day)} className="w-full p-3 rounded-2xl bg-white/8 border border-white/10 flex items-center gap-3 text-left">
+              <button key={`${e.day}-${e.media.id}-${e.media.seasonNumber || ""}-${e.media.episodeNumber || ""}`} onClick={() => setSelected(e.day)} className="w-full p-3 rounded-2xl bg-white/8 border border-white/10 flex items-center gap-3 text-left">
                 <div className="w-10 h-10 rounded-full bg-[#D9A441]/15 text-[#D9A441] flex items-center justify-center" style={{ fontSize: 13, fontWeight: 900 }}>{e.day}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-white line-clamp-1" style={{ fontSize: 13, fontWeight: 800 }}>{e.title}</div>
-                  <div className="text-white/50" style={{ fontSize: 11 }}>{e.media.type}</div>
+                  <div className="text-white line-clamp-1" style={{ fontSize: 13, fontWeight: 800 }}>{releaseTitle(e.media)}</div>
+                  <div className="text-white/50 line-clamp-1" style={{ fontSize: 11 }}>{releaseLabel(e.media)}{e.media.episodeTitle ? ` • ${e.media.episodeTitle}` : ""}</div>
                 </div>
               </button>
             ))}
