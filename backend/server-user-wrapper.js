@@ -78,15 +78,18 @@ function getUserLibrary(req) {
   return { libraries, userId, library: Array.isArray(libraries[userId]) ? libraries[userId] : [] };
 }
 
-function setUserLibrary(req, nextLibrary) {
+function setUserLibraryById(userId, nextLibrary) {
   const libraries = getLibraries();
-  const userId = userIdFromRequest(req);
   libraries[userId] = nextLibrary.map((item) => compactItem(item)).filter((item) => item.mediaId).slice(0, 500);
   saveLibraries(libraries);
   return libraries[userId];
 }
 
-function removeOldUserRoutes() {
+function setUserLibrary(req, nextLibrary) {
+  return setUserLibraryById(userIdFromRequest(req), nextLibrary);
+}
+
+function removeOriginalUserRoutesAndTerminalHandlers() {
   const userPaths = new Set([
     "/api/user/library",
     "/api/user/library/:mediaId",
@@ -99,7 +102,12 @@ function removeOldUserRoutes() {
 
   app._router.stack = app._router.stack.filter((layer) => {
     const routePath = layer.route && layer.route.path;
-    return !userPaths.has(routePath);
+    if (userPaths.has(routePath)) return false;
+
+    const isTerminalMiddleware = !layer.route && typeof layer.handle === "function" && (layer.handle.length === 2 || layer.handle.length === 4);
+    if (isTerminalMiddleware) return false;
+
+    return true;
   });
 }
 
@@ -153,7 +161,7 @@ function buildInsights(library) {
   return insights;
 }
 
-removeOldUserRoutes();
+removeOriginalUserRoutesAndTerminalHandlers();
 
 app.get("/api/user/library", (req, res) => {
   const { library } = getUserLibrary(req);
@@ -167,15 +175,14 @@ app.post("/api/user/library", (req, res) => {
   const item = compactItem(req.body, existing);
   const next = library.filter((entry) => entry.mediaId !== item.mediaId).concat(item);
   setUserLibrary(req, next);
-  res.status(201).json({ success: true, data: item });
+  res.status(existing.mediaId ? 200 : 201).json({ success: true, data: item });
 });
 
 app.patch("/api/user/library/:mediaId", (req, res) => {
   const { library } = getUserLibrary(req);
-  const existing = library.find((item) => item.mediaId === req.params.mediaId);
-  if (!existing) return res.status(404).json({ error: "Library item not found" });
-  const item = compactItem({ ...req.body, mediaId: existing.mediaId }, existing);
-  const next = library.map((entry) => entry.mediaId === item.mediaId ? item : entry);
+  const existing = library.find((item) => item.mediaId === req.params.mediaId) || { mediaId: req.params.mediaId };
+  const item = compactItem({ ...req.body, mediaId: req.params.mediaId }, existing);
+  const next = library.filter((entry) => entry.mediaId !== item.mediaId).concat(item);
   setUserLibrary(req, next);
   res.json({ success: true, data: item });
 });
@@ -197,12 +204,50 @@ app.get("/api/brain/insights", (req, res) => {
   res.json(buildInsights(library));
 });
 
+app.get("/api/user/export", (req, res) => {
+  const { userId, library } = getUserLibrary(req);
+  res.json({
+    app: "WatchVault",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    userId,
+    library,
+  });
+});
+
+app.post("/api/user/import", (req, res) => {
+  const targetUserId = userIdFromRequest(req);
+  const items = Array.isArray(req.body?.library) ? req.body.library : [];
+  const nextLibrary = items.map((item) => compactItem(item)).filter((item) => item.mediaId).slice(0, 500);
+  const saved = setUserLibraryById(targetUserId, nextLibrary);
+  res.json({ success: true, imported: saved.length, userId: targetUserId });
+});
+
+app.post("/api/user/recover", (req, res) => {
+  const requestedUserId = cleanUserId(req.body?.userId);
+  const libraries = getLibraries();
+  const library = Array.isArray(libraries[requestedUserId]) ? libraries[requestedUserId] : [];
+  res.json({ success: true, userId: requestedUserId, found: library.length > 0, itemCount: library.length, library });
+});
+
 if (process.env.NODE_ENV === "test") {
   app.post("/api/test/reset", (req, res) => {
     saveLibraries({});
     res.json({ success: true });
   });
 }
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+app.use((error, req, res, next) => {
+  if (error.response) {
+    return res.status(error.response.status || 502).json({ error: error.message || "External API error" });
+  }
+  const status = error.status || 500;
+  res.status(status).json({ error: error.message || "Something went wrong" });
+});
 
 if (require.main === module) {
   app.listen(PORT, () => {
