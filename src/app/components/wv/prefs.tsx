@@ -17,10 +17,11 @@ export type UserPrefs = {
 type Ctx = {
   prefs: UserPrefs;
   update: (p: Partial<UserPrefs>) => void;
+  reset: () => void;
 };
 
 const DEFAULT: UserPrefs = {
-  name: "Ansh",
+  name: "User",
   regionCode: "IN",
   regionName: "India",
   languages: ["English", "Hindi"],
@@ -31,12 +32,13 @@ const DEFAULT: UserPrefs = {
   onboarded: false,
 };
 
-const PrefsCtx = createContext<Ctx>({ prefs: DEFAULT, update: () => {} });
+const PrefsCtx = createContext<Ctx>({ prefs: DEFAULT, update: () => {}, reset: () => {} });
 const STORAGE_KEY = "watchvault:prefs";
 
 function cleanName(value: unknown): string {
   const name = typeof value === "string" ? value.trim() : "";
-  if (!name || name.toLowerCase() === "watcher" || name.toLowerCase() === "ansb") return DEFAULT.name;
+  const badNames = ["watcher", "ansb", "ansh", "undefined", "null"];
+  if (!name || badNames.includes(name.toLowerCase())) return DEFAULT.name;
   return name;
 }
 
@@ -58,7 +60,11 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }, [prefs]);
 
   const value = useMemo(
-    () => ({ prefs, update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p, name: p.name === undefined ? s.name : cleanName(p.name) })) }),
+    () => ({
+      prefs,
+      update: (p: Partial<UserPrefs>) => setPrefs((s) => ({ ...s, ...p, name: p.name === undefined ? s.name : cleanName(p.name) })),
+      reset: () => setPrefs(DEFAULT),
+    }),
     [prefs],
   );
   return <PrefsCtx.Provider value={value}>{children}</PrefsCtx.Provider>;

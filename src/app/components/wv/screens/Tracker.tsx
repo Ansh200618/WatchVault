@@ -17,29 +17,50 @@ type Episode = {
   stillUrl: string | null;
 };
 
+function keyFor(s: number, e: number) {
+  return `${s}-${e}`;
+}
+
+function buildEpisodeSlots(media: Media, seasonNumber: number, count: number): Episode[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => ({
+    id: `${media.id}:season:${seasonNumber}:episode:${index + 1}`,
+    seasonNumber,
+    episodeNumber: index + 1,
+    title: `Episode ${index + 1}`,
+    airDate: null,
+    runtimeMinutes: media.runtime ? Number(String(media.runtime).replace(/\D/g, "")) || null : null,
+    stillUrl: media.banner || media.poster || null,
+  }));
+}
+
 export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
   const { refresh } = useLiveData();
   const seasons = useMemo(() => {
     if (m.seasonDetails?.length) return m.seasonDetails;
-    return Array.from({ length: m.seasons ?? 1 }, (_, index) => ({
+    const seasonCount = Math.max(1, m.seasons ?? 1);
+    const total = Math.max(1, m.totalEpisodes || 8);
+    return Array.from({ length: seasonCount }, (_, index) => ({
       id: `${m.id}:season:${index + 1}`,
       seasonNumber: index + 1,
       name: `Season ${index + 1}`,
-      episodeCount: Math.max(1, Math.ceil((m.totalEpisodes || 8) / (m.seasons || 1))),
+      episodeCount: Math.max(1, Math.ceil(total / seasonCount)),
       watchedCount: 0,
       posterUrl: m.poster,
       airDate: m.releaseDate,
     }));
   }, [m]);
+
   const [tab, setTab] = useState<TrackerTab>("Seasons");
   const [seasonNumber, setSeasonNumber] = useState(seasons[0]?.seasonNumber || 1);
   const [watched, setWatched] = useState<Record<string, boolean>>({});
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+  const [episodeSource, setEpisodeSource] = useState<"provider" | "slots">("slots");
   const [dialog, setDialog] = useState<{ s: number; e: number } | null>(null);
 
   const selectedSeason = seasons.find((season) => season.seasonNumber === seasonNumber) || seasons[0];
-  const episodeCount = selectedSeason?.episodeCount || episodes.length || 0;
+  const expectedEpisodeCount = selectedSeason?.episodeCount || Math.max(1, Math.ceil((m.totalEpisodes || 8) / (m.seasons || 1)));
+  const episodeCount = selectedSeason?.episodeCount || episodes.length || expectedEpisodeCount;
   const totalEpisodes = seasons.reduce((sum, season) => sum + (season.episodeCount || 0), 0) || m.totalEpisodes || episodeCount;
   const completed = Object.values(watched).filter(Boolean).length;
   const progress = totalEpisodes ? Math.round((completed / totalEpisodes) * 100) : (m.progress ?? 0);
@@ -65,10 +86,21 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
 
     apiService.getSeasonEpisodes(m.id, seasonNumber)
       .then((season) => {
-        if (!cancelled) setEpisodes(season.episodes || []);
+        if (cancelled) return;
+        const providerEpisodes = season.episodes || [];
+        if (providerEpisodes.length) {
+          setEpisodes(providerEpisodes);
+          setEpisodeSource("provider");
+        } else {
+          setEpisodes(buildEpisodeSlots(m, seasonNumber, expectedEpisodeCount));
+          setEpisodeSource("slots");
+        }
       })
       .catch(() => {
-        if (!cancelled) setEpisodes([]);
+        if (!cancelled) {
+          setEpisodes(buildEpisodeSlots(m, seasonNumber, expectedEpisodeCount));
+          setEpisodeSource("slots");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingEpisodes(false);
@@ -77,11 +109,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [m, seasonNumber, selectedSeason?.episodeCount]);
-
-  function keyFor(s: number, e: number) {
-    return `${s}-${e}`;
-  }
+  }, [m, seasonNumber, expectedEpisodeCount]);
 
   const isEpisodeWatched = (s: number, e: number) => Boolean(watched[keyFor(s, e)]);
 
@@ -171,12 +199,12 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
     <div className="space-y-2">
       {loadingEpisodes && (
         <div className="p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ fontSize: 12 }}>
-          Loading real episodes...
+          Loading latest episode list from provider...
         </div>
       )}
-      {!loadingEpisodes && episodes.length === 0 && (
-        <div className="p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ fontSize: 12 }}>
-          Episode data is unavailable for this title.
+      {!loadingEpisodes && episodeSource === "slots" && episodes.length > 0 && (
+        <div className="p-4 rounded-3xl bg-[#D9A441]/15 border border-[#D9A441]/25 text-[#7A5A1F] dark:text-[#D9A441]" style={{ fontSize: 12, lineHeight: 1.5 }}>
+          Provider episode titles are not available yet. Showing trackable episode slots from the season episode count.
         </div>
       )}
       {episodes.map((episode) => {
@@ -191,7 +219,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
                 S{episode.seasonNumber} E{episode.episodeNumber} - {episode.title || `Episode ${episode.episodeNumber}`}
               </div>
               <div className="text-[#666666]" style={{ fontSize: 10 }}>
-                {[episode.airDate, episode.runtimeMinutes ? `${episode.runtimeMinutes}m` : null].filter(Boolean).join(" - ") || "Details unavailable"}
+                {[episode.airDate, episode.runtimeMinutes ? `${episode.runtimeMinutes}m` : null].filter(Boolean).join(" - ") || "Track progress"}
               </div>
             </div>
             <button

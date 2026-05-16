@@ -131,42 +131,52 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [moviesResult, seriesResult, animeResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
-      apiService.getPopularMedia("movie"),
-      apiService.getPopularMedia("tv"),
-      apiService.getPopularMedia("anime"),
-      apiService.getUserLibrary(),
-      readJson<MediaItem[]>("/upcoming"),
-      readJson<{ apis: Record<string, string> }>("/status"),
-      apiService.getStats(),
-      readJson<Insight[]>("/brain/insights"),
-    ]);
+    try {
+      const [moviesResult, seriesResult, animeResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
+        apiService.getPopularMedia("movie"),
+        apiService.getPopularMedia("tv"),
+        apiService.getPopularMedia("anime"),
+        apiService.getUserLibrary(),
+        readJson<MediaItem[]>("/upcoming"),
+        readJson<{ apis: Record<string, string> }>("/status"),
+        apiService.getStats(),
+        readJson<Insight[]>("/brain/insights"),
+      ]);
 
-    const movies = moviesResult.status === "fulfilled" ? moviesResult.value.map(mediaItemToMedia) : [];
-    const series = seriesResult.status === "fulfilled" ? seriesResult.value.map(mediaItemToMedia) : [];
-    const anime = animeResult.status === "fulfilled" ? animeResult.value.map(mediaItemToMedia) : [];
-    const popular = uniqueById([...movies, ...series, ...anime]);
-    const library = libraryResult.status === "fulfilled" ? libraryResult.value : [];
-    const libraryMedia = library.map(mediaFromLibraryItem).filter((item): item is Media => Boolean(item));
-    const upcomingMedia =
-      upcomingResult.status === "fulfilled"
-        ? upcomingResult.value.map((item) => ({ ...mediaItemToMedia(item), status: "Upcoming" as const }))
-        : [];
-    const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
-    const buckets = buildBuckets(merged);
+      const movies = moviesResult.status === "fulfilled" ? moviesResult.value.map(mediaItemToMedia) : [];
+      const series = seriesResult.status === "fulfilled" ? seriesResult.value.map(mediaItemToMedia) : [];
+      const anime = animeResult.status === "fulfilled" ? animeResult.value.map(mediaItemToMedia) : [];
+      const popular = uniqueById([...movies, ...series, ...anime]);
+      const library = libraryResult.status === "fulfilled" ? libraryResult.value : [];
+      const libraryMedia = library.map(mediaFromLibraryItem).filter((item): item is Media => Boolean(item));
+      const upcomingMedia =
+        upcomingResult.status === "fulfilled"
+          ? upcomingResult.value.map((item) => ({ ...mediaItemToMedia(item), status: "Upcoming" as const }))
+          : [];
+      const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
+      const buckets = buildBuckets(merged);
 
-    setUpcoming(upcomingMedia);
-    setMedia(buckets.all);
-    setMediaBuckets(buckets);
-    setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : []);
-    setStats(statsResult.status === "fulfilled" ? statsResult.value : emptyStats);
-    setInsights(insightsResult.status === "fulfilled" ? insightsResult.value : []);
+      setUpcoming(upcomingMedia);
+      setMedia(buckets.all);
+      setMediaBuckets(buckets);
+      setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : []);
+      setStats(statsResult.status === "fulfilled" ? statsResult.value : emptyStats);
+      setInsights(insightsResult.status === "fulfilled" ? insightsResult.value : []);
 
-    if (!merged.length) {
-      setError("No live API data returned. Check backend URL and API keys in Settings.");
+      if (!merged.length && !upcomingMedia.length) {
+        setError("No live API data returned. Check backend URL and API keys in Settings.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load live backend data");
+      setMedia([]);
+      setMediaBuckets(emptyBuckets);
+      setUpcoming([]);
+      setInsights([]);
+      setApiStatus([]);
+      setStats(emptyStats);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
