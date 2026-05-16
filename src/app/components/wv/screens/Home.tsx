@@ -20,6 +20,14 @@ function filterToKind(filter: HomeFilter) {
   return undefined;
 }
 
+function filterItems(items: Media[], filter: HomeFilter) {
+  if (filter === "Movies") return items.filter((item) => item.type === "Movie");
+  if (filter === "Series") return items.filter((item) => item.type === "Series");
+  if (filter === "Anime") return items.filter((item) => item.type === "Anime");
+  if (filter === "Upcoming") return items.filter((item) => item.status === "Upcoming");
+  return items;
+}
+
 function bucketForFilter(filter: HomeFilter, buckets: ReturnType<typeof useLiveData>["mediaBuckets"], upcoming: Media[]) {
   if (filter === "Movies") return buckets.movies;
   if (filter === "Series") return buckets.series;
@@ -44,7 +52,15 @@ export function Home({
 
   const contentLabel = filter === "All" ? "Trending" : filter;
   const categoryMedia = useMemo(() => bucketForFilter(filter, mediaBuckets, upcoming), [filter, mediaBuckets, upcoming]);
-  const visibleMedia = query.trim() ? searchResults ?? [] : categoryMedia;
+  const visibleMedia = useMemo(() => {
+    if (!query.trim()) return categoryMedia;
+    return filterItems(searchResults ?? [], filter);
+  }, [categoryMedia, filter, query, searchResults]);
+  const filteredUpcoming = useMemo(() => {
+    if (filter === "All") return upcoming;
+    if (filter === "Upcoming") return upcoming;
+    return filterItems(upcoming, filter);
+  }, [filter, upcoming]);
   const continueList = visibleMedia.filter((m) => m.status === "Watching");
   const trending = visibleMedia.filter((m) => m.rating >= 7 || m.status === "Upcoming");
   const featured = visibleMedia[0] || categoryMedia[0] || media[0] || upcoming[0];
@@ -61,11 +77,19 @@ export function Home({
     }
 
     const timeout = window.setTimeout(() => {
+      if (filter === "Upcoming") {
+        const localResults = upcoming.filter((item) =>
+          [item.title, item.overview, item.language, ...(item.genres || [])].join(" ").toLowerCase().includes(text.toLowerCase())
+        );
+        setSearchResults(localResults);
+        return;
+      }
+
       searchMedia(text, kind).then(setSearchResults).catch(() => setSearchResults([]));
     }, 350);
 
     return () => window.clearTimeout(timeout);
-  }, [filter, query, searchMedia]);
+  }, [filter, query, searchMedia, upcoming]);
 
   const openInsightAction = (insight: { action: string; mediaId?: string }) => {
     const target = insight.mediaId ? media.find((item) => item.id === insight.mediaId) || upcoming.find((item) => item.id === insight.mediaId) : null;
@@ -202,11 +226,11 @@ export function Home({
         </>
       )}
 
-      {filter !== "Upcoming" && upcoming.length > 0 && (
+      {filter !== "Upcoming" && filteredUpcoming.length > 0 && (
         <>
           <SectionHeader title="Upcoming Releases" action="Calendar" onAction={() => onNavigate("calendar")} />
           <div className="px-5 space-y-3">
-            {upcoming.slice(0, 2).map((m) => <UpcomingCard key={m.id} m={m} onClick={() => onOpen(m)} />)}
+            {filteredUpcoming.slice(0, 2).map((m) => <UpcomingCard key={m.id} m={m} onClick={() => onOpen(m)} />)}
           </div>
         </>
       )}
