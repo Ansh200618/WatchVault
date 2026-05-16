@@ -1,15 +1,105 @@
 import { useMemo, useState } from "react";
 import { CalendarDays } from "lucide-react";
-import type { Media } from "../../../data";
+import type { Media, MediaItem, WatchProviderItem } from "../../../data";
 import { FilterChips, UpcomingCard } from "../shared";
 import { useLiveData } from "../../../services/liveData";
 import { LoadingState } from "../states";
 import { apiService } from "../../../services/api";
 
+function runtimeMinutes(runtime?: string) {
+  if (!runtime) return null;
+  const parsed = Number(String(runtime).replace(/\D/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function providerSnapshots(media: Media): WatchProviderItem[] {
+  return (media.providers || []).map((name, index) => ({
+    id: `${media.id}:provider:${index}`,
+    name,
+    logoUrl: null,
+    type: "subscription",
+    region: "IN",
+  }));
+}
+
+function mediaSnapshot(media: Media): MediaItem {
+  const base = {
+    id: media.id,
+    title: media.title,
+    originalTitle: media.originalTitle || null,
+    year: media.year || null,
+    posterUrl: media.poster || null,
+    backdropUrl: media.banner || media.poster || null,
+    overview: media.overview || null,
+    genres: media.genres || [],
+    languages: media.language ? [media.language] : [],
+    ratings: media.ratings?.length ? media.ratings : [{ source: "User" as const, value: media.rating || null, scale: 10 as const }],
+    providers: providerSnapshots(media),
+    trailerUrl: media.trailerUrl || null,
+  };
+
+  if (media.type === "Movie") {
+    return { ...base, kind: "movie", runtimeMinutes: runtimeMinutes(media.runtime), releaseDate: media.releaseDate || null };
+  }
+
+  if (media.type === "Series") {
+    const seasons = media.seasonDetails || [];
+    return {
+      ...base,
+      kind: "tv",
+      firstAirDate: media.releaseDate || null,
+      lastAirDate: null,
+      episodeRuntimeMinutes: runtimeMinutes(media.runtime),
+      seasonCount: media.seasons || seasons.length || 1,
+      episodeCount: media.totalEpisodes || seasons.reduce((sum, season) => sum + (season.episodeCount || 0), 0) || 0,
+      status: "Returning",
+      seasons: seasons.map((season) => ({
+        id: season.id,
+        seasonNumber: season.seasonNumber,
+        name: season.name,
+        episodeCount: season.episodeCount,
+        airDate: season.airDate || null,
+        posterUrl: season.posterUrl || null,
+        watchedCount: season.watchedCount || 0,
+      })),
+    };
+  }
+
+  const seasons = media.seasonDetails?.length ? media.seasonDetails : [{
+    id: `${media.id}:season:1`,
+    seasonNumber: 1,
+    name: "Season 1",
+    episodeCount: media.totalEpisodes || 0,
+    airDate: media.releaseDate || null,
+    posterUrl: media.poster || null,
+    watchedCount: media.watched || 0,
+  }];
+
+  return {
+    ...base,
+    kind: "anime",
+    format: "TV",
+    episodeCount: media.totalEpisodes || seasons.reduce((sum, season) => sum + (season.episodeCount || 0), 0) || null,
+    durationMinutes: runtimeMinutes(media.runtime),
+    seasons: seasons.map((season) => ({
+      id: season.id,
+      seasonNumber: season.seasonNumber,
+      name: season.name,
+      episodeCount: season.episodeCount,
+      airDate: season.airDate || null,
+      posterUrl: season.posterUrl || null,
+      watchedCount: season.watchedCount || 0,
+    })),
+    studio: null,
+    source: "anilist",
+  };
+}
+
 export function Upcoming({ onOpen }: { onOpen: (m: Media) => void }) {
   const [filter, setFilter] = useState("This Month");
   const [selected, setSelected] = useState<Media | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const { upcoming, loading, refresh } = useLiveData();
   const list = useMemo(() => {
     return upcoming.filter((m) => {
@@ -26,16 +116,24 @@ export function Upcoming({ onOpen }: { onOpen: (m: Media) => void }) {
   }, [filter, upcoming]);
 
   const saveReminder = async (offset: string) => {
-    if (!selected) return;
-    await apiService.addLibraryItem({
-      mediaId: selected.id,
-      status: "plan",
-      progressPercent: 0,
-      notes: `Reminder: ${offset}`,
-    });
-    setMessage(`Reminder saved for ${selected.title}`);
-    setSelected(null);
-    await refresh();
+    if (!selected || saving) return;
+    setSaving(true);
+    try {
+      await apiService.addLibraryItem({
+        mediaId: selected.id,
+        status: "plan",
+        progressPercent: 0,
+        notes: `Reminder: ${offset}`,
+        media: mediaSnapshot(selected),
+      });
+      setMessage(`Reminder saved for ${selected.title}`);
+      setSelected(null);
+      await refresh();
+    } catch {
+      setMessage("Could not save reminder right now. Check backend/API status in Settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -88,8 +186,8 @@ export function Upcoming({ onOpen }: { onOpen: (m: Media) => void }) {
                 Open Details
               </button>
               {["Release day", "1 day before", "3 days before", "1 week before"].map((o) => (
-                <button key={o} onClick={() => void saveReminder(o)} className="p-3 rounded-2xl border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white" style={{ fontSize: 13, fontWeight: 600 }}>
-                  {o}
+                <button key={o} disabled={saving} onClick={() => void saveReminder(o)} className="p-3 rounded-2xl border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white disabled:opacity-50" style={{ fontSize: 13, fontWeight: 600 }}>
+                  {saving ? "Saving..." : o}
                 </button>
               ))}
             </div>

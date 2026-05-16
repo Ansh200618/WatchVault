@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Film, CheckCircle2, CalendarClock, MapPin, Bell, Sparkles, ChevronRight } from "lucide-react";
 import { GlassPanel, GlassButton, GlassChip } from "../glass";
 import { usePrefs, REGIONS, LANGUAGES, CONTENT_TYPES, GENRES, type Theme } from "../prefs";
+import { requestReminderPermission } from "../../../services/notifications";
 
 type Step =
   | "intro"
@@ -43,7 +44,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="h-full flex flex-col px-6 pt-16 pb-8 relative">
-      {/* Top bar: progress + skip */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-1 flex-1 mr-3">
           {STEP_ORDER.map((_, idx) => (
@@ -110,7 +110,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         </AnimatePresence>
       </div>
 
-      {/* CTA */}
       <div className="pt-4">
         {step === "intro" ? (
           <div className="flex items-center gap-3">
@@ -301,6 +300,23 @@ function GenresPane({ selected, onToggle }: { selected: string[]; onToggle: (g: 
 }
 
 function NotificationsPane({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+
+  const enable = async () => {
+    if (asking) return;
+    setAsking(true);
+    const result = await requestReminderPermission();
+    onChange(result.enabled);
+    setMessage(result.message);
+    setAsking(false);
+  };
+
+  const later = () => {
+    onChange(false);
+    setMessage("No problem. You can enable reminders anytime in Settings.");
+  };
+
   return (
     <div>
       <PaneHeader title="Do you want release reminders?" sub="We'll notify you before new movies, episodes and anime seasons drop." />
@@ -316,9 +332,14 @@ function NotificationsPane({ enabled, onChange }: { enabled: boolean; onChange: 
           You can change this any time in Settings.
         </div>
       </GlassPanel>
+      {message && (
+        <div className="mt-3 p-3 rounded-2xl bg-white/10 border border-white/15 text-white/80" style={{ fontSize: 12, lineHeight: 1.4 }}>
+          {message}
+        </div>
+      )}
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
-          onClick={() => onChange(false)}
+          onClick={later}
           className="py-3 rounded-full text-white"
           style={{
             background: !enabled ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)",
@@ -329,8 +350,9 @@ function NotificationsPane({ enabled, onChange }: { enabled: boolean; onChange: 
           Maybe Later
         </button>
         <button
-          onClick={() => onChange(true)}
-          className="py-3 rounded-full"
+          onClick={enable}
+          disabled={asking}
+          className="py-3 rounded-full disabled:opacity-60"
           style={{
             background: enabled ? "linear-gradient(135deg, #D9A441, #007a68)" : "rgba(255,255,255,0.06)",
             border: enabled ? "1px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.12)",
@@ -339,7 +361,7 @@ function NotificationsPane({ enabled, onChange }: { enabled: boolean; onChange: 
             fontSize: 13, fontWeight: 600,
           }}
         >
-          Enable Reminders
+          {asking ? "Requesting..." : "Enable Reminders"}
         </button>
       </div>
     </div>

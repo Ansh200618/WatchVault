@@ -2,6 +2,7 @@ import { ArrowLeft, ChevronRight, CheckCircle2, Download, Upload, Trash2, Refres
 import { useRef, useState } from "react";
 import { API_BASE_URL } from "../../../services/api";
 import { useLiveData } from "../../../services/liveData";
+import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
 import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
 
 type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "api" | "data" | "about";
@@ -24,6 +25,18 @@ export function SettingsScreen({
   const showMessage = (text: string) => {
     setMessage(text);
     window.setTimeout(() => setMessage(null), 3000);
+  };
+
+  const toggleReminders = async () => {
+    if (prefs.remindersEnabled) {
+      update({ remindersEnabled: false });
+      showMessage("Release reminders are turned off. You can turn them on anytime here.");
+      return;
+    }
+
+    const result = await requestReminderPermission();
+    update({ remindersEnabled: result.enabled });
+    showMessage(result.message);
   };
 
   const exportData = () => {
@@ -111,11 +124,7 @@ export function SettingsScreen({
             <Row label="Default region" value={prefs.regionName} onClick={() => setPage("region")} />
             <Row label="Preferred languages" value={prefs.languages.join(", ")} onClick={() => setPage("languages")} />
             <Row label="Content types" value={prefs.contentTypes.join(", ")} onClick={() => setPage("content")} />
-            <Row
-              label="Notification reminders"
-              value={prefs.remindersEnabled ? "On" : "Off"}
-              onClick={() => update({ remindersEnabled: !prefs.remindersEnabled })}
-            />
+            <Row label="Notification reminders" value={reminderPermissionLabel(prefs.remindersEnabled)} onClick={() => void toggleReminders()} />
           </SettingsGroup>
 
           <SettingsGroup title="Data">

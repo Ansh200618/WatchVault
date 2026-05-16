@@ -7,18 +7,31 @@ import { LoadingState } from "../states";
 
 const TABS = ["Watching", "Plan", "Completed", "Dropped", "On Hold", "Favorites"];
 
+function statusForTab(tab: string) {
+  return tab === "Favorites" ? "Favorite" : tab;
+}
+
 export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; onDiscover: () => void }) {
   const [tab, setTab] = useState("Watching");
   const [queryOpen, setQueryOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<"recent" | "rating">("recent");
+  const [sort, setSort] = useState<"recent" | "rating" | "title">("recent");
   const { media, loading } = useLiveData();
 
   const list = useMemo(() => {
-    const filtered = tab === "Favorites" ? media.slice(0, 3) : media.filter((m) => m.status === tab);
-    const searched = filtered.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()));
-    return [...searched].sort((a, b) => sort === "rating" ? b.rating - a.rating : 0);
+    const targetStatus = statusForTab(tab);
+    const filtered = media.filter((m) => m.status === targetStatus);
+    const searched = filtered.filter((m) => m.title.toLowerCase().includes(query.toLowerCase().trim()));
+    return [...searched].sort((a, b) => {
+      if (sort === "rating") return b.rating - a.rating;
+      if (sort === "title") return a.title.localeCompare(b.title);
+      return 0;
+    });
   }, [media, query, sort, tab]);
+
+  const cycleSort = () => {
+    setSort((current) => current === "recent" ? "rating" : current === "rating" ? "title" : "recent");
+  };
 
   return (
     <div className="h-full overflow-y-auto pb-28">
@@ -27,10 +40,10 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
           My Library
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setQueryOpen((open) => !open)} className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center">
+          <button onClick={() => setQueryOpen((open) => !open)} className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center" aria-label="Search library">
             <Search size={14} className="text-[#111] dark:text-white" />
           </button>
-          <button onClick={() => setSort((current) => current === "recent" ? "rating" : "recent")} className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center">
+          <button onClick={cycleSort} className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center" aria-label="Change library sort">
             <SlidersHorizontal size={14} className="text-[#111] dark:text-white" />
           </button>
         </div>
@@ -56,7 +69,7 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
       </div>
 
       <div className="px-5 mt-3 text-[#666666]" style={{ fontSize: 11 }}>
-        Sorted by {sort === "rating" ? "rating" : "recent activity"}
+        Sorted by {sort === "rating" ? "rating" : sort === "title" ? "title" : "recent activity"}
       </div>
 
       <div className="px-5 mt-4 space-y-3">

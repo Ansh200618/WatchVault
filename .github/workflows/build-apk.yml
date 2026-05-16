@@ -2,6 +2,10 @@ name: Build WatchVault APK
 
 on:
   push:
+    branches:
+      - main
+      - fix/full-app-functionality-audit
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 

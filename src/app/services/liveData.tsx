@@ -9,10 +9,23 @@ import type {
 } from "../data";
 import { API_BASE_URL, apiService, apiStatusToCards, mediaItemToMedia } from "./api";
 
-export type Insight = { icon: string; text: string; action: string; mediaId?: string };
+type Insight = {
+  icon?: string;
+  text: string;
+  action: string;
+  mediaId?: string;
+};
+
+type MediaBuckets = {
+  all: Media[];
+  movies: Media[];
+  series: Media[];
+  anime: Media[];
+};
 
 type LiveDataState = {
   media: Media[];
+  mediaBuckets: MediaBuckets;
   upcoming: Media[];
   insights: Insight[];
   apiStatus: ApiStatusItem[];
@@ -21,6 +34,13 @@ type LiveDataState = {
   error: string | null;
   refresh: () => Promise<void>;
   searchMedia: (query: string, kind?: "movie" | "tv" | "anime") => Promise<Media[]>;
+};
+
+const emptyBuckets: MediaBuckets = {
+  all: [],
+  movies: [],
+  series: [],
+  anime: [],
 };
 
 const emptyStats: WatchStatsItem = {
@@ -45,7 +65,7 @@ function statusLabel(status: LibraryStatus | undefined): Media["status"] {
     completed: "Completed",
     dropped: "Dropped",
     on_hold: "On Hold",
-    favorite: "Completed",
+    favorite: "Favorite",
   };
   return status ? map[status] : undefined;
 }
@@ -71,17 +91,35 @@ function uniqueById(items: Media[]) {
 }
 
 function mediaFromLibraryItem(item: UserLibraryItem): Media | null {
-  return item.media ? mediaItemToMedia(item.media as MediaItem) : null;
+  if (!item.media) return null;
+  return {
+    ...mediaItemToMedia(item.media as MediaItem),
+    status: statusLabel(item.status),
+    progress: item.progressPercent,
+    lastEpisode: item.lastEpisode ? `S${item.lastEpisode.season} E${item.lastEpisode.episode}` : undefined,
+  };
 }
 
-async function readJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Failed to fetch ${url}`);
+async function readJson<T>(path: string): Promise<T> {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${API_BASE_URL}${cleanPath}`, { cache: "no-store", headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`Failed to fetch ${cleanPath}`);
   return response.json();
+}
+
+function buildBuckets(items: Media[]): MediaBuckets {
+  const all = uniqueById(items);
+  return {
+    all,
+    movies: all.filter((item) => item.type === "Movie"),
+    series: all.filter((item) => item.type === "Series"),
+    anime: all.filter((item) => item.type === "Anime"),
+  };
 }
 
 export function LiveDataProvider({ children }: { children: React.ReactNode }) {
   const [media, setMedia] = useState<Media[]>([]);
+  const [mediaBuckets, setMediaBuckets] = useState<MediaBuckets>(emptyBuckets);
   const [upcoming, setUpcoming] = useState<Media[]>([]);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>([]);
@@ -94,16 +132,21 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const [popularResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
-        apiService.getPopularMedia(),
+      const [moviesResult, seriesResult, animeResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
+        apiService.getPopularMedia("movie"),
+        apiService.getPopularMedia("tv"),
+        apiService.getPopularMedia("anime"),
         apiService.getUserLibrary(),
-        readJson<MediaItem[]>(`${API_BASE_URL}/upcoming`),
-        readJson<{ apis: Record<string, string> }>(`${API_BASE_URL}/status`),
+        readJson<MediaItem[]>("/upcoming"),
+        readJson<{ apis: Record<string, string> }>("/status"),
         apiService.getStats(),
-        readJson<Insight[]>(`${API_BASE_URL}/brain/insights`),
+        readJson<Insight[]>("/brain/insights"),
       ]);
 
-      const popular = popularResult.status === "fulfilled" ? popularResult.value.map(mediaItemToMedia) : [];
+      const movies = moviesResult.status === "fulfilled" ? moviesResult.value.map(mediaItemToMedia) : [];
+      const series = seriesResult.status === "fulfilled" ? seriesResult.value.map(mediaItemToMedia) : [];
+      const anime = animeResult.status === "fulfilled" ? animeResult.value.map(mediaItemToMedia) : [];
+      const popular = uniqueById([...movies, ...series, ...anime]);
       const library = libraryResult.status === "fulfilled" ? libraryResult.value : [];
       const libraryMedia = library.map(mediaFromLibraryItem).filter((item): item is Media => Boolean(item));
       const upcomingMedia =
@@ -111,19 +154,22 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
           ? upcomingResult.value.map((item) => ({ ...mediaItemToMedia(item), status: "Upcoming" as const }))
           : [];
       const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
+      const buckets = buildBuckets(merged);
 
       setUpcoming(upcomingMedia);
-      setMedia(merged);
+      setMedia(buckets.all);
+      setMediaBuckets(buckets);
       setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : []);
       setStats(statsResult.status === "fulfilled" ? statsResult.value : emptyStats);
       setInsights(insightsResult.status === "fulfilled" ? insightsResult.value : []);
 
       if (!merged.length && !upcomingMedia.length) {
-        setError("Live backend is connected, but it returned no titles. Check Render API keys and /api/status.");
+        setError("No live API data returned. Check backend URL and API keys in Settings.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load live backend data");
       setMedia([]);
+      setMediaBuckets(emptyBuckets);
       setUpcoming([]);
       setInsights([]);
       setApiStatus([]);
@@ -152,13 +198,17 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
 
   const searchMedia = useCallback(async (query: string, kind?: "movie" | "tv" | "anime") => {
     if (!query.trim()) return media;
-    const results = await apiService.searchMedia(query, kind);
-    return results.map(mediaItemToMedia);
+    try {
+      const results = await apiService.searchMedia(query, kind);
+      return results.map(mediaItemToMedia);
+    } catch {
+      return [];
+    }
   }, [media]);
 
   const value = useMemo(
-    () => ({ media, upcoming, insights, apiStatus, stats, loading, error, refresh, searchMedia }),
-    [apiStatus, error, insights, loading, media, refresh, searchMedia, stats, upcoming]
+    () => ({ media, mediaBuckets, upcoming, insights, apiStatus, stats, loading, error, refresh, searchMedia }),
+    [apiStatus, error, insights, loading, media, mediaBuckets, refresh, searchMedia, stats, upcoming]
   );
 
   return <LiveDataContext.Provider value={value}>{children}</LiveDataContext.Provider>;

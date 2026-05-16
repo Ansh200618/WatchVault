@@ -1,12 +1,106 @@
 import { useState } from "react";
 import { ArrowLeft, Bell, Check, Heart, Play, Plus } from "lucide-react";
 import { ImageWithFallback } from "../../figma/ImageWithFallback";
-import type { Media } from "../../../data";
+import type { Media, MediaItem, WatchProviderItem } from "../../../data";
 import { StatusChip } from "../shared";
 import { useSetArtwork } from "../artwork";
 import { GlassPanel, GlassButton, GlassRatingChip, FloatingCircle } from "../glass";
 import { apiService } from "../../../services/api";
 import { useLiveData } from "../../../services/liveData";
+
+function runtimeMinutes(runtime?: string) {
+  if (!runtime) return null;
+  const parsed = Number(String(runtime).replace(/\D/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function providerSnapshots(media: Media): WatchProviderItem[] {
+  return (media.providers || []).map((name, index) => ({
+    id: `${media.id}:provider:${index}`,
+    name,
+    logoUrl: null,
+    type: "subscription",
+    region: "IN",
+  }));
+}
+
+function mediaSnapshot(media: Media): MediaItem {
+  const base = {
+    id: media.id,
+    title: media.title,
+    originalTitle: media.originalTitle || null,
+    year: media.year || null,
+    posterUrl: media.poster || null,
+    backdropUrl: media.banner || media.poster || null,
+    overview: media.overview || null,
+    genres: media.genres || [],
+    languages: media.language ? [media.language] : [],
+    ratings: media.ratings?.length ? media.ratings : [{ source: "User" as const, value: media.rating || null, scale: 10 as const }],
+    providers: providerSnapshots(media),
+    trailerUrl: media.trailerUrl || null,
+  };
+
+  if (media.type === "Movie") {
+    return {
+      ...base,
+      kind: "movie",
+      runtimeMinutes: runtimeMinutes(media.runtime),
+      releaseDate: media.releaseDate || null,
+    };
+  }
+
+  if (media.type === "Series") {
+    const seasons = media.seasonDetails || [];
+    return {
+      ...base,
+      kind: "tv",
+      firstAirDate: media.releaseDate || null,
+      lastAirDate: null,
+      episodeRuntimeMinutes: runtimeMinutes(media.runtime),
+      seasonCount: media.seasons || seasons.length || 1,
+      episodeCount: media.totalEpisodes || seasons.reduce((sum, season) => sum + (season.episodeCount || 0), 0) || 0,
+      status: "Returning",
+      seasons: seasons.map((season) => ({
+        id: season.id,
+        seasonNumber: season.seasonNumber,
+        name: season.name,
+        episodeCount: season.episodeCount,
+        airDate: season.airDate || null,
+        posterUrl: season.posterUrl || null,
+        watchedCount: season.watchedCount || 0,
+      })),
+    };
+  }
+
+  const seasons = media.seasonDetails?.length ? media.seasonDetails : [{
+    id: `${media.id}:season:1`,
+    seasonNumber: 1,
+    name: "Season 1",
+    episodeCount: media.totalEpisodes || 0,
+    airDate: media.releaseDate || null,
+    posterUrl: media.poster || null,
+    watchedCount: media.watched || 0,
+  }];
+
+  return {
+    ...base,
+    kind: "anime",
+    format: "TV",
+    episodeCount: media.totalEpisodes || seasons.reduce((sum, season) => sum + (season.episodeCount || 0), 0) || null,
+    durationMinutes: runtimeMinutes(media.runtime),
+    seasons: seasons.map((season) => ({
+      id: season.id,
+      seasonNumber: season.seasonNumber,
+      name: season.name,
+      episodeCount: season.episodeCount,
+      airDate: season.airDate || null,
+      posterUrl: season.posterUrl || null,
+      watchedCount: season.watchedCount || 0,
+    })),
+    studio: null,
+    source: "anilist",
+  };
+}
 
 export function Detail({
   m,
@@ -21,8 +115,7 @@ export function Detail({
   const { refresh } = useLiveData();
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Ratings shape mirrors RatingItem[] from data.ts. In the real app these come
-  // from TMDB (TMDB), OMDb (IMDb / RT / Metacritic), and the user's own score.
+  const [saving, setSaving] = useState(false);
   const liveRatings = m.ratings?.map((rating) => ({
     label:
       rating.source === "RottenTomatoes"
@@ -44,14 +137,22 @@ export function Detail({
           { label: "User", value: null },
         ];
   const saveStatus = async (status: "watching" | "plan" | "completed" | "favorite") => {
-    await apiService.addLibraryItem({
-      mediaId: m.id,
-      status,
-      progressPercent: status === "completed" ? 100 : status === "watching" ? (m.progress ?? 0) : 0,
-    });
-    setLibraryOpen(false);
-    setMessage(status === "plan" ? "Added to pending list" : status === "completed" ? "Marked as watched" : "Saved to library");
-    await refresh();
+    setSaving(true);
+    try {
+      await apiService.addLibraryItem({
+        mediaId: m.id,
+        status,
+        progressPercent: status === "completed" ? 100 : status === "watching" ? (m.progress ?? 0) : 0,
+        media: mediaSnapshot(m),
+      });
+      setLibraryOpen(false);
+      setMessage(status === "plan" ? "Added to pending list" : status === "completed" ? "Marked as watched" : status === "favorite" ? "Added to favorites" : "Saved to library");
+      await refresh();
+    } catch {
+      setMessage("Could not save right now. Check backend/API status in Settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openTrailer = () => {
@@ -63,9 +164,16 @@ export function Detail({
   };
 
   const remind = async () => {
-    await apiService.addLibraryItem({ mediaId: m.id, status: "plan", progressPercent: 0, notes: "Reminder enabled" });
-    setMessage("Reminder saved in your pending list");
-    await refresh();
+    setSaving(true);
+    try {
+      await apiService.addLibraryItem({ mediaId: m.id, status: "plan", progressPercent: 0, notes: "Reminder enabled", media: mediaSnapshot(m) });
+      setMessage("Reminder saved in your pending list");
+      await refresh();
+    } catch {
+      setMessage("Could not save reminder right now. Check backend/API status in Settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -77,7 +185,7 @@ export function Detail({
           <FloatingCircle onClick={onBack}><ArrowLeft size={18} /></FloatingCircle>
         </div>
         <div className="absolute top-12 right-5">
-          <FloatingCircle onClick={() => void saveStatus("favorite")}><Heart size={18} /></FloatingCircle>
+          <FloatingCircle onClick={() => !saving && void saveStatus("favorite")}><Heart size={18} /></FloatingCircle>
         </div>
       </div>
 
@@ -111,13 +219,13 @@ export function Detail({
 
         <div className="mt-5 flex gap-2">
           <GlassButton variant="accent" className="flex-1" onClick={() => setLibraryOpen((open) => !open)}>
-            <Plus size={14} /> Add to Library
+            <Plus size={14} /> {saving ? "Saving..." : "Add to Library"}
           </GlassButton>
           <GlassButton variant="ghost" onClick={openTrailer}>
             <Play size={13} fill="currentColor" /> Trailer
           </GlassButton>
           {m.status === "Upcoming" && (
-            <FloatingCircle onClick={remind}><Bell size={16} /></FloatingCircle>
+            <FloatingCircle onClick={() => !saving && void remind()}><Bell size={16} /></FloatingCircle>
           )}
         </div>
 
@@ -131,9 +239,10 @@ export function Detail({
             ].map((option) => (
               <button
                 key={option.status}
-                onClick={() => void saveStatus(option.status)}
-                className="px-3 py-2 rounded-2xl bg-white/10 text-white flex items-center justify-center gap-2"
+                onClick={() => !saving && void saveStatus(option.status)}
+                className="px-3 py-2 rounded-2xl bg-white/10 text-white flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ fontSize: 12, fontWeight: 700 }}
+                disabled={saving}
               >
                 <Check size={13} /> {option.label}
               </button>
