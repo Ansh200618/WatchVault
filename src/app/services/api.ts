@@ -126,6 +126,18 @@ function cleanLanguages(item: MediaItem) {
   return Array.from(new Set(values));
 }
 
+function releaseDateFor(item: MediaItem) {
+  if (item.releaseType === 'episode' || item.releaseType === 'anime_episode') {
+    const firstSeason = item.kind === 'tv' || item.kind === 'anime' ? item.seasons?.[0] : undefined;
+    const firstEpisode = firstSeason?.episodes?.[0];
+    return firstEpisode?.airDate || firstSeason?.airDate || undefined;
+  }
+
+  if (item.kind === 'movie') return item.releaseDate || undefined;
+  if (item.kind === 'tv') return item.firstAirDate || item.seasons?.[0]?.airDate || undefined;
+  return item.seasons[0]?.airDate || undefined;
+}
+
 export function mediaItemToMedia(item: MediaItem): Media {
   const firstRating = item.ratings.find((rating) => rating.value !== null);
   const rating =
@@ -134,12 +146,7 @@ export function mediaItemToMedia(item: MediaItem): Media {
       : firstRating.scale === 100
         ? Number((firstRating.value / 10).toFixed(1))
         : Number(firstRating.value.toFixed(1));
-  const releaseDate =
-    item.kind === 'movie'
-      ? item.releaseDate
-      : item.kind === 'tv'
-        ? item.firstAirDate
-        : item.seasons[0]?.airDate || null;
+  const releaseDate = releaseDateFor(item);
   const runtime =
     item.kind === 'movie'
       ? item.runtimeMinutes
@@ -162,7 +169,12 @@ export function mediaItemToMedia(item: MediaItem): Media {
     banner: item.backdropUrl || item.posterUrl || undefined,
     genres: item.genres,
     overview: item.overview || 'No overview available.',
-    releaseDate: releaseDate || undefined,
+    releaseDate,
+    releaseType: item.releaseType,
+    parentTitle: item.parentTitle || undefined,
+    seasonNumber: item.seasonNumber || undefined,
+    episodeNumber: item.episodeNumber || undefined,
+    episodeTitle: item.episodeTitle || undefined,
     status: undefined,
     providers: item.providers.map((provider: any) => provider.name || provider.providerName).filter(Boolean),
     ratings: item.ratings,
