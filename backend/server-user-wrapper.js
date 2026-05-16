@@ -6,7 +6,9 @@ const app = require("./server");
 const shouldPersistLibrary = process.env.NODE_ENV !== "test";
 const dataDir = path.join(__dirname, "data");
 const librariesFile = path.join(dataDir, "libraries.json");
+const devicesFile = path.join(dataDir, "devices.json");
 const PORT = Number(process.env.PORT || 5000);
+const MAX_DEVICES_PER_USER = 5;
 
 function cleanUserId(value) {
   return String(value || "anonymous")
@@ -17,6 +19,58 @@ function cleanUserId(value) {
 
 function userIdFromRequest(req) {
   return cleanUserId(req.get("X-WatchVault-User") || req.query.userId || "anonymous");
+}
+
+function deviceIdFromRequest(req) {
+  return cleanUserId(req.get("X-WatchVault-Device") || req.query.deviceId || "dev_unknown");
+}
+
+function readJsonObject(file, fallback = {}) {
+  if (!shouldPersistLibrary) return fallback;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonObject(file, value) {
+  if (!shouldPersistLibrary) return;
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(value, null, 2));
+}
+
+function registerDevice(req, res) {
+  const userId = userIdFromRequest(req);
+  const deviceId = deviceIdFromRequest(req);
+  if (userId === "anonymous" || deviceId === "dev_unknown") return true;
+
+  const devices = readJsonObject(devicesFile, {});
+  const userDevices = Array.isArray(devices[userId]) ? devices[userId] : [];
+  const now = new Date().toISOString();
+  const existing = userDevices.find((device) => device.deviceId === deviceId);
+
+  if (existing) {
+    existing.lastSeenAt = now;
+    writeJsonObject(devicesFile, devices);
+    return true;
+  }
+
+  if (userDevices.length >= MAX_DEVICES_PER_USER) {
+    res.status(403).json({
+      error: "Device limit reached",
+      message: "This WatchVault account is already linked to 5 devices. Remove another device or use a different User ID.",
+      maxDevices: MAX_DEVICES_PER_USER,
+      linkedDevices: userDevices.length,
+    });
+    return false;
+  }
+
+  userDevices.push({ deviceId, firstSeenAt: now, lastSeenAt: now });
+  devices[userId] = userDevices;
+  writeJsonObject(devicesFile, devices);
+  return true;
 }
 
 function compactWatchedEpisodes(raw) {
@@ -53,19 +107,11 @@ function compactItem(raw = {}, existing = {}) {
 }
 
 function readLibraries() {
-  if (!shouldPersistLibrary) return {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(librariesFile, "utf8"));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { anonymous: [] };
-  } catch {
-    return {};
-  }
+  return readJsonObject(librariesFile, {});
 }
 
 function saveLibraries(libraries) {
-  if (!shouldPersistLibrary) return;
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(librariesFile, JSON.stringify(libraries, null, 2));
+  writeJsonObject(librariesFile, libraries);
 }
 
 function getLibraries() {
@@ -164,11 +210,13 @@ function buildInsights(library) {
 removeOriginalUserRoutesAndTerminalHandlers();
 
 app.get("/api/user/library", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { library } = getUserLibrary(req);
   res.json(library);
 });
 
 app.post("/api/user/library", (req, res) => {
+  if (!registerDevice(req, res)) return;
   if (!req.body.mediaId) return res.status(400).json({ error: "mediaId is required" });
   const { library } = getUserLibrary(req);
   const existing = library.find((item) => item.mediaId === req.body.mediaId) || {};
@@ -179,6 +227,7 @@ app.post("/api/user/library", (req, res) => {
 });
 
 app.patch("/api/user/library/:mediaId", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { library } = getUserLibrary(req);
   const existing = library.find((item) => item.mediaId === req.params.mediaId) || { mediaId: req.params.mediaId };
   const item = compactItem({ ...req.body, mediaId: req.params.mediaId }, existing);
@@ -188,6 +237,7 @@ app.patch("/api/user/library/:mediaId", (req, res) => {
 });
 
 app.delete("/api/user/library/:mediaId", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { library } = getUserLibrary(req);
   const next = library.filter((item) => item.mediaId !== req.params.mediaId);
   setUserLibrary(req, next);
@@ -195,27 +245,35 @@ app.delete("/api/user/library/:mediaId", (req, res) => {
 });
 
 app.get("/api/user/stats", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { library } = getUserLibrary(req);
   res.json(buildStats(library));
 });
 
 app.get("/api/brain/insights", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { library } = getUserLibrary(req);
   res.json(buildInsights(library));
 });
 
 app.get("/api/user/export", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const { userId, library } = getUserLibrary(req);
+  const devices = readJsonObject(devicesFile, {});
+  const linkedDevices = Array.isArray(devices[userId]) ? devices[userId].length : 0;
   res.json({
     app: "WatchVault",
     version: 1,
     exportedAt: new Date().toISOString(),
     userId,
+    linkedDevices,
+    maxDevices: MAX_DEVICES_PER_USER,
     library,
   });
 });
 
 app.post("/api/user/import", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const targetUserId = userIdFromRequest(req);
   const items = Array.isArray(req.body?.library) ? req.body.library : [];
   const nextLibrary = items.map((item) => compactItem(item)).filter((item) => item.mediaId).slice(0, 500);
@@ -224,6 +282,7 @@ app.post("/api/user/import", (req, res) => {
 });
 
 app.post("/api/user/recover", (req, res) => {
+  if (!registerDevice(req, res)) return;
   const requestedUserId = cleanUserId(req.body?.userId);
   const libraries = getLibraries();
   const library = Array.isArray(libraries[requestedUserId]) ? libraries[requestedUserId] : [];
@@ -233,6 +292,7 @@ app.post("/api/user/recover", (req, res) => {
 if (process.env.NODE_ENV === "test") {
   app.post("/api/test/reset", (req, res) => {
     saveLibraries({});
+    writeJsonObject(devicesFile, {});
     res.json({ success: true });
   });
 }
