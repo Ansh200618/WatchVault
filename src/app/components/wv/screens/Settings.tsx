@@ -1,11 +1,10 @@
-import { ArrowLeft, ChevronRight, CheckCircle2, Download, Upload, Trash2, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
-import { API_BASE_URL } from "../../../services/api";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { useLiveData } from "../../../services/liveData";
 import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
 import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
 
-type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "api" | "data" | "about";
+type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "about";
 
 export function SettingsScreen({
   onBack,
@@ -16,11 +15,10 @@ export function SettingsScreen({
   theme: "light" | "dark" | "amoled";
   setTheme: (t: "light" | "dark" | "amoled") => void;
 }) {
-  const { apiStatus, refresh, stats } = useLiveData();
+  const { refresh } = useLiveData();
   const { prefs, update, reset } = usePrefs();
   const [page, setPage] = useState<SettingsPage>("main");
   const [message, setMessage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const showMessage = (text: string) => {
     setMessage(text);
@@ -39,53 +37,26 @@ export function SettingsScreen({
     showMessage(result.message);
   };
 
-  const exportData = () => {
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      app: "WatchVault",
-      prefs,
-      stats,
-      apiStatus,
-      backend: API_BASE_URL,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `watchvault-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    showMessage("Backup exported successfully.");
-  };
-
-  const importData = (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || "{}"));
-        if (parsed.prefs) update(parsed.prefs);
-        showMessage("Backup imported successfully.");
-      } catch {
-        showMessage("Import failed. Select a valid WatchVault JSON backup.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const clearLocalData = () => {
-    const ok = window.confirm("Clear local preferences and cached WebView data? Your live backend data will remain on Render.");
+  const clearSavedPreferences = () => {
+    const ok = window.confirm("Clear your saved preferences from this device?");
     if (!ok) return;
-    window.localStorage.removeItem("watchvault:prefs");
-    window.localStorage.clear();
     reset();
-    showMessage("Local app data cleared. Restarting...");
+    window.localStorage.removeItem("watchvault:prefs");
+    showMessage("Saved preferences cleared. Restarting...");
     window.setTimeout(() => window.location.reload(), 700);
   };
 
-  const pageTitle = page === "main" ? "Settings" : page.charAt(0).toUpperCase() + page.slice(1);
+  const titleMap: Record<SettingsPage, string> = {
+    main: "Settings",
+    profile: "Profile",
+    region: "Region",
+    languages: "Languages",
+    content: "Content",
+    about: "About",
+  };
+
+  const languageSummary = prefs.languages.length ? prefs.languages.join(", ") : "None selected";
+  const contentSummary = prefs.contentTypes.length ? prefs.contentTypes.join(", ") : "None selected";
 
   return (
     <div className="h-full overflow-y-auto pb-28">
@@ -98,7 +69,7 @@ export function SettingsScreen({
           <ArrowLeft size={16} className="text-[#111] dark:text-white" />
         </button>
         <div className="text-[#111] dark:text-white" style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>
-          {pageTitle}
+          {titleMap[page]}
         </div>
       </div>
 
@@ -120,22 +91,16 @@ export function SettingsScreen({
           </Section>
 
           <SettingsGroup title="Preferences">
-            <Row label="Profile name" value={prefs.name} onClick={() => setPage("profile")} />
+            <Row label="Profile name" value={prefs.name || "Not set"} onClick={() => setPage("profile")} />
             <Row label="Default region" value={prefs.regionName} onClick={() => setPage("region")} />
-            <Row label="Preferred languages" value={prefs.languages.join(", ")} onClick={() => setPage("languages")} />
-            <Row label="Content types" value={prefs.contentTypes.join(", ")} onClick={() => setPage("content")} />
-            <Row label="Notification reminders" value={reminderPermissionLabel(prefs.remindersEnabled)} onClick={() => void toggleReminders()} />
+            <Row label="Preferred languages" value={languageSummary} onClick={() => setPage("languages")} />
+            <Row label="Content types" value={contentSummary} onClick={() => setPage("content")} />
+            <SwitchRow label="Release reminders" value={reminderPermissionLabel(prefs.remindersEnabled)} active={prefs.remindersEnabled} onClick={() => void toggleReminders()} />
           </SettingsGroup>
 
-          <SettingsGroup title="Data">
-            <Row label="Backup / Export data" value="JSON" onClick={() => setPage("data")} />
-            <Row label="Import data" value="JSON" onClick={() => fileInputRef.current?.click()} />
-            <Row label="Clear local data" value="Reset" onClick={clearLocalData} danger />
-          </SettingsGroup>
-
-          <SettingsGroup title="System">
-            <Row label="API status" value={`${apiStatus.length || 0} services`} onClick={() => setPage("api")} />
-            <Row label="Refresh live data" value="Now" onClick={() => refresh().then(() => showMessage("Latest backend data loaded."))} />
+          <SettingsGroup title="App">
+            <Row label="Refresh content" value="Now" onClick={() => refresh().then(() => showMessage("Latest content loaded."))} />
+            <Row label="Clear saved preferences" value="Reset" onClick={clearSavedPreferences} danger />
             <Row label="About WatchVault" value="v1.0.0" onClick={() => setPage("about")} />
           </SettingsGroup>
         </>
@@ -155,14 +120,18 @@ export function SettingsScreen({
 
       {page === "region" && (
         <SettingsGroup title="Select region">
-          {REGIONS.map((region) => (
-            <Row
-              key={region.code}
-              label={region.name}
-              value={prefs.regionCode === region.code ? "Selected" : region.code}
-              onClick={() => update({ regionCode: region.code, regionName: region.name })}
-            />
-          ))}
+          {REGIONS.map((region) => {
+            const active = prefs.regionCode === region.code;
+            return (
+              <SwitchRow
+                key={region.code}
+                label={region.name}
+                value={active ? "On" : "Off"}
+                active={active}
+                onClick={() => update({ regionCode: region.code, regionName: region.name })}
+              />
+            );
+          })}
         </SettingsGroup>
       )}
 
@@ -171,10 +140,11 @@ export function SettingsScreen({
           {LANGUAGES.map((language) => {
             const active = prefs.languages.includes(language);
             return (
-              <Row
+              <SwitchRow
                 key={language}
                 label={language}
                 value={active ? "On" : "Off"}
+                active={active}
                 onClick={() => update({ languages: active ? prefs.languages.filter((l) => l !== language) : [...prefs.languages, language] })}
               />
             );
@@ -187,10 +157,11 @@ export function SettingsScreen({
           {CONTENT_TYPES.map((type) => {
             const active = prefs.contentTypes.includes(type);
             return (
-              <Row
+              <SwitchRow
                 key={type}
                 label={type}
                 value={active ? "On" : "Off"}
+                active={active}
                 onClick={() => update({ contentTypes: active ? prefs.contentTypes.filter((t) => t !== type) : [...prefs.contentTypes, type] })}
               />
             );
@@ -198,53 +169,13 @@ export function SettingsScreen({
         </SettingsGroup>
       )}
 
-      {page === "data" && (
-        <Section title="Backup and import">
-          <button onClick={exportData} className="w-full py-4 rounded-full bg-[#111] text-white dark:bg-white dark:text-black flex items-center justify-center gap-2" style={{ fontSize: 13, fontWeight: 700 }}>
-            <Download size={16} /> Export JSON backup
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} className="w-full mt-3 py-4 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white flex items-center justify-center gap-2" style={{ fontSize: 13, fontWeight: 700 }}>
-            <Upload size={16} /> Import JSON backup
-          </button>
-          <button onClick={clearLocalData} className="w-full mt-3 py-4 rounded-full bg-red-500 text-white flex items-center justify-center gap-2" style={{ fontSize: 13, fontWeight: 700 }}>
-            <Trash2 size={16} /> Clear local app data
-          </button>
-        </Section>
-      )}
-
-      {page === "api" && (
-        <Section title="Live API status">
-          <div className="text-[#666666] mb-3" style={{ fontSize: 11, wordBreak: "break-all" }}>{API_BASE_URL}</div>
-          <button onClick={() => refresh().then(() => showMessage("API status refreshed."))} className="mb-3 w-full py-3 rounded-full bg-[#111] text-white dark:bg-white dark:text-black flex items-center justify-center gap-2" style={{ fontSize: 12, fontWeight: 700 }}>
-            <RefreshCw size={15} /> Refresh status
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            {apiStatus.map((api) => (
-              <div key={api.name} className="p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]" style={{ borderRadius: 20 }}>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 size={14} className={api.state === "key_missing" ? "text-red-500" : "text-[#D9A441]"} />
-                  <div className="text-[#111] dark:text-white" style={{ fontSize: 13, fontWeight: 600 }}>{api.name}</div>
-                </div>
-                <div className="mt-1.5 text-[#666666] dark:text-[#B8B8B8]" style={{ fontSize: 10, lineHeight: 1.4 }}>{api.state}</div>
-              </div>
-            ))}
-            {!apiStatus.length && <div className="col-span-2 text-[#666666]" style={{ fontSize: 12 }}>No API status returned yet. Refresh after Render is live.</div>}
-          </div>
-        </Section>
-      )}
-
       {page === "about" && (
         <Section title="About WatchVault">
           <div className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ borderRadius: 20, fontSize: 12, lineHeight: 1.6 }}>
-            WatchVault tracks movies, series, anime, release dates, legal providers, and watch progress. It does not stream or provide pirated content.
-          </div>
-          <div className="mt-3 p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ borderRadius: 20, fontSize: 11, lineHeight: 1.5 }}>
-            This product uses TMDB, OMDb, AniList, Jikan, and Watchmode data where configured. This product is not endorsed or certified by TMDB.
+            WatchVault tracks movies, series, anime, release dates, legal watch options, and watch progress. It does not stream content or provide pirated links.
           </div>
         </Section>
       )}
-
-      <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(e) => importData(e.target.files?.[0] || null)} />
 
       {message && (
         <div className="fixed left-5 right-5 bottom-28 z-50 p-3 rounded-2xl bg-[#D9A441] text-black shadow-xl" style={{ fontSize: 12, fontWeight: 700 }}>
@@ -281,6 +212,20 @@ function Row({ label, value, onClick, danger }: { label: string; value?: string;
       <div className="flex items-center gap-2 min-w-0">
         {value && <span className="text-[#666666] truncate max-w-[150px]" style={{ fontSize: 12 }}>{value}</span>}
         <ChevronRight size={14} className="text-[#666666] flex-shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function SwitchRow({ label, value, active, onClick }: { label: string; value: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 border-[#E5E5E5] dark:border-[#2A2A2A] text-left">
+      <span className="text-[#111] dark:text-white" style={{ fontSize: 13 }}>{label}</span>
+      <div className="flex items-center gap-3">
+        <span className="text-[#666666]" style={{ fontSize: 12 }}>{value}</span>
+        <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${active ? "bg-[#D9A441]" : "bg-[#2A2A2A] border border-white/10"}`}>
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${active ? "translate-x-6" : "translate-x-1"}`} />
+        </span>
       </div>
     </button>
   );
