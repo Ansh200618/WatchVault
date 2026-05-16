@@ -171,7 +171,7 @@ export type Media = {
   rating: number;
   runtime?: string;
   language: string;
-  status?: "Watching" | "Completed" | "Plan" | "Dropped" | "On Hold" | "Upcoming";
+  status?: "Watching" | "Completed" | "Plan" | "Dropped" | "On Hold" | "Favorite" | "Upcoming";
   progress?: number;
   lastEpisode?: string;
   poster: string;
