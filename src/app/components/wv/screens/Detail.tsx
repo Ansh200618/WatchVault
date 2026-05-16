@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Bell, Check, Heart, Play, Plus } from "lucide-react";
+import { ArrowLeft, Bell, Check, Heart, Languages, Play, Plus } from "lucide-react";
 import { ImageWithFallback } from "../../figma/ImageWithFallback";
 import type { Media, MediaItem, WatchProviderItem } from "../../../data";
 import { StatusChip } from "../shared";
@@ -25,6 +25,7 @@ function providerSnapshots(media: Media): WatchProviderItem[] {
 }
 
 function mediaSnapshot(media: Media): MediaItem {
+  const audioLanguages = media.audioLanguages?.length ? media.audioLanguages : media.language ? [media.language] : [];
   const base = {
     id: media.id,
     title: media.title,
@@ -34,7 +35,8 @@ function mediaSnapshot(media: Media): MediaItem {
     backdropUrl: media.banner || media.poster || null,
     overview: media.overview || null,
     genres: media.genres || [],
-    languages: media.language ? [media.language] : [],
+    languages: media.language ? [media.language] : audioLanguages,
+    audioLanguages,
     ratings: media.ratings?.length ? media.ratings : [{ source: "User" as const, value: media.rating || null, scale: 10 as const }],
     providers: providerSnapshots(media),
     trailerUrl: media.trailerUrl || null,
@@ -118,6 +120,7 @@ export function Detail({
   const [saving, setSaving] = useState(false);
   const [favorite, setFavorite] = useState(m.status === "Favorite");
   const progress = Math.max(0, Math.min(100, m.progress ?? 0));
+  const audioLanguages = Array.from(new Set((m.audioLanguages?.length ? m.audioLanguages : m.language ? [m.language] : []).map((language) => String(language).trim()).filter(Boolean)));
 
   useEffect(() => {
     setFavorite(m.status === "Favorite");
@@ -312,6 +315,27 @@ export function Detail({
         <GlassPanel className="mt-5 p-4">
           <div className="text-white mb-2" style={{ fontSize: 16, fontWeight: 600 }}>Overview</div>
           <p className="text-white/70" style={{ fontSize: 13, lineHeight: 1.6 }}>{m.overview}</p>
+        </GlassPanel>
+
+        <GlassPanel className="mt-5 p-4">
+          <div className="flex items-center gap-2 text-white mb-3" style={{ fontSize: 16, fontWeight: 700 }}>
+            <Languages size={18} className="text-[#D9A441]" /> Audio Languages
+          </div>
+          {audioLanguages.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {audioLanguages.map((language) => (
+                <span
+                  key={language}
+                  className="px-3 py-1.5 rounded-full text-white"
+                  style={{ fontSize: 12, fontWeight: 700, background: "rgba(217,164,65,0.14)", border: "1px solid rgba(217,164,65,0.30)" }}
+                >
+                  {language}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="text-white/65" style={{ fontSize: 12 }}>Audio languages are not available for this title yet.</div>
+          )}
         </GlassPanel>
 
         <div className="mt-5">
