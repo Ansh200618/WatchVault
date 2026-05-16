@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystorePath = project.findProperty("WATCHVAULT_KEYSTORE_PATH") ?: System.getenv("WATCHVAULT_KEYSTORE_PATH")
+def releaseKeystorePassword = project.findProperty("WATCHVAULT_KEYSTORE_PASSWORD") ?: System.getenv("WATCHVAULT_KEYSTORE_PASSWORD")
+def releaseKeyAlias = project.findProperty("WATCHVAULT_KEY_ALIAS") ?: System.getenv("WATCHVAULT_KEY_ALIAS")
+def releaseKeyPassword = project.findProperty("WATCHVAULT_KEY_PASSWORD") ?: System.getenv("WATCHVAULT_KEY_PASSWORD")
+def hasReleaseSigning = releaseKeystorePath && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword && file(releaseKeystorePath).exists()
+
 android {
     namespace = "com.watchvault.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,9 +22,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (!hasReleaseSigning) {
+                throw new GradleException("Release signing is not configured. Add WATCHVAULT_KEYSTORE_PATH, WATCHVAULT_KEYSTORE_PASSWORD, WATCHVAULT_KEY_ALIAS, and WATCHVAULT_KEY_PASSWORD.")
+            }
+            signingConfig signingConfigs.release
             minifyEnabled false
+            shrinkResources false
+            debuggable false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
