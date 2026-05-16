@@ -48,7 +48,7 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
   }, [filter, query, searchMedia]);
 
   return (
-    <div className="h-full overflow-y-auto pb-28 ">
+    <div className="h-full overflow-y-auto pb-44">
       <div className="px-5 pt-14">
         <div className="flex items-center justify-between mb-4">
           <div className="text-[#111] dark:text-white" style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>
@@ -58,12 +58,14 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
             <button
               onClick={() => setView("grid")}
               className={`w-8 h-8 rounded-full flex items-center justify-center ${view === "grid" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
+              aria-label="Grid view"
             >
               <LayoutGrid size={14} />
             </button>
             <button
               onClick={() => setView("list")}
               className={`w-8 h-8 rounded-full flex items-center justify-center ${view === "list" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
+              aria-label="List view"
             >
               <List size={14} />
             </button>
@@ -84,13 +86,13 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
         ) : error || searchError ? (
           <ErrorState onRetry={refresh} />
         ) : view === "grid" ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 pb-6">
             {filtered.map((m) => (
               <PosterCard key={m.id} m={m} onClick={() => onOpen(m)} w={156} />
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 pb-6">
             {filtered.map((m) => (
               <button
                 key={m.id}
@@ -98,11 +100,11 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
                 className="w-full flex gap-3 p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-left"
                 style={{ borderRadius: 24 }}
               >
-                <div className="w-16 h-20 rounded-2xl overflow-hidden bg-[#E5E5E5]">
+                <div className="w-16 h-20 rounded-2xl overflow-hidden bg-[#E5E5E5] flex-shrink-0">
                   <img src={m.poster} alt="" className="w-full h-full object-cover" />
                 </div>
-                <div className="flex-1">
-                  <div className="text-[#111] dark:text-white" style={{ fontSize: 15, fontWeight: 600 }}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[#111] dark:text-white line-clamp-1" style={{ fontSize: 15, fontWeight: 600 }}>
                     {m.title}
                   </div>
                   <div className="text-[#666666] dark:text-[#B8B8B8]" style={{ fontSize: 12 }}>
