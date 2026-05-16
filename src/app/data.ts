@@ -10,6 +10,7 @@
 
 export type MediaKind = "movie" | "tv" | "anime";
 export type LibraryStatus = "watching" | "plan" | "completed" | "dropped" | "on_hold" | "favorite";
+export type ReleaseType = "movie" | "season" | "episode" | "anime_episode";
 
 /** Score normalised to 0-10 unless explicitly noted otherwise. */
 export interface RatingItem {
@@ -62,9 +63,15 @@ interface BaseMediaItem {
   overview: string | null;
   genres: string[];
   languages: string[];
+  audioLanguages?: string[];
   ratings: RatingItem[];
   providers: WatchProviderItem[];
   trailerUrl: string | null;
+  releaseType?: ReleaseType;
+  parentTitle?: string | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  episodeTitle?: string | null;
 }
 
 export interface MovieItem extends BaseMediaItem {
@@ -105,6 +112,11 @@ export interface UpcomingReleaseItem {
   region: string;
   language: string;
   reminderSet: boolean;
+  releaseType?: ReleaseType;
+  parentTitle?: string | null;
+  seasonNumber?: number | null;
+  episodeNumber?: number | null;
+  episodeTitle?: string | null;
 }
 
 export type ReminderOffset = "release_day" | "1d" | "3d" | "1w" | "custom";
@@ -171,6 +183,7 @@ export type Media = {
   rating: number;
   runtime?: string;
   language: string;
+  audioLanguages?: string[];
   status?: "Watching" | "Completed" | "Plan" | "Dropped" | "On Hold" | "Favorite" | "Upcoming";
   progress?: number;
   lastEpisode?: string;
@@ -179,6 +192,11 @@ export type Media = {
   genres: string[];
   overview: string;
   releaseDate?: string;
+  releaseType?: ReleaseType;
+  parentTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  episodeTitle?: string;
   countdown?: string;
   seasons?: number;
   totalEpisodes?: number;
