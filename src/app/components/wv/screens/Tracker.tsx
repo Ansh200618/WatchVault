@@ -18,6 +18,12 @@ type Episode = {
   stillUrl: string | null;
 };
 
+type TrackerProps = {
+  m: Media;
+  onBack: () => void;
+  onProgressChange?: (patch: Partial<Media>) => void;
+};
+
 function keyFor(s: number, e: number) {
   return `${s}-${e}`;
 }
@@ -40,7 +46,7 @@ function buildEpisodeSlots(media: Media, seasonNumber: number, count: number): E
   }));
 }
 
-export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
+export function Tracker({ m, onBack, onProgressChange }: TrackerProps) {
   const { refresh } = useLiveData();
   const seasons = useMemo(() => {
     if (m.seasonDetails?.length) return m.seasonDetails;
@@ -146,14 +152,26 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
   const normalizeWatched = (state: WatchedMap): WatchedMap =>
     Object.fromEntries(Object.entries(state).filter(([, value]) => Boolean(value))) as WatchedMap;
 
-  const persistProgress = async (state: WatchedMap) => {
+  const syncSelectedProgress = (state: WatchedMap) => {
     const exactWatched = normalizeWatched(state);
     const count = Object.values(exactWatched).filter(Boolean).length;
     const nextProgress = totalEpisodes ? Math.round((count / totalEpisodes) * 100) : 0;
+    const latest = latestEpisodeFromWatched(exactWatched);
+    onProgressChange?.({
+      progress: nextProgress,
+      status: nextProgress >= 100 ? "Completed" : nextProgress > 0 ? "Watching" : "Plan",
+      lastEpisode: latest ? `S${latest.season} E${latest.episode}` : undefined,
+      watchedEpisodes: exactWatched as any,
+    } as Partial<Media>);
+    return { exactWatched, nextProgress, latest };
+  };
+
+  const persistProgress = async (state: WatchedMap) => {
+    const { exactWatched, nextProgress, latest } = syncSelectedProgress(state);
     const payload = {
       status: nextProgress >= 100 ? "completed" as const : nextProgress > 0 ? "watching" as const : "plan" as const,
       progressPercent: nextProgress,
-      lastEpisode: latestEpisodeFromWatched(exactWatched),
+      lastEpisode: latest,
       watchedEpisodes: exactWatched,
     };
 
@@ -164,6 +182,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
         await apiService.updateLibraryItem(m.id, payload);
       } catch {
         await apiService.addLibraryItem({ mediaId: m.id, ...payload });
+        await apiService.updateLibraryItem(m.id, payload);
       }
       setSaveMessage("Progress updated");
       await refresh();
@@ -179,6 +198,7 @@ export function Tracker({ m, onBack }: { m: Media; onBack: () => void }) {
   const applyWatched = (producer: (current: WatchedMap) => WatchedMap) => {
     setWatched((current) => {
       const next = normalizeWatched(producer(current));
+      syncSelectedProgress(next);
       void persistProgress(next);
       return next;
     });
