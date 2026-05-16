@@ -11,6 +11,7 @@ export type AppUpdateInfo = {
 const OWNER = "Ansh200618";
 const REPO = "WatchVault";
 const FALLBACK_VERSION = "1.0.0";
+const VERSION_PATTERN = /v?(\d+\.\d+\.\d+)/i;
 
 export const CURRENT_APP_VERSION = String(import.meta.env.VITE_APP_VERSION || FALLBACK_VERSION);
 
@@ -19,6 +20,21 @@ function versionParts(version: string) {
     .replace(/^v/i, "")
     .split(/[.-]/)
     .map((part) => Number(part.replace(/\D/g, "")) || 0);
+}
+
+function extractVersion(value: unknown) {
+  const text = String(value || "");
+  const match = text.match(VERSION_PATTERN);
+  return match?.[1] || null;
+}
+
+function releaseVersion(release: any, apkAsset: any) {
+  return (
+    extractVersion(apkAsset?.name) ||
+    extractVersion(release?.name) ||
+    extractVersion(release?.body) ||
+    extractVersion(release?.tag_name)
+  );
 }
 
 export function isNewerVersion(latest: string, current: string) {
@@ -47,10 +63,10 @@ export async function checkForAppUpdate(): Promise<AppUpdateInfo> {
   }
 
   const release = await response.json();
-  const latestVersion = String(release.tag_name || release.name || "").replace(/^v/i, "") || null;
   const apkAsset = Array.isArray(release.assets)
     ? release.assets.find((asset: any) => String(asset.name || "").toLowerCase().endsWith(".apk"))
     : null;
+  const latestVersion = releaseVersion(release, apkAsset);
 
   return {
     currentVersion: CURRENT_APP_VERSION,
