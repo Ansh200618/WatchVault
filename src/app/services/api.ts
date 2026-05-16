@@ -115,6 +115,17 @@ export const apiService = {
   }
 };
 
+function cleanLanguages(item: MediaItem) {
+  const values = [
+    ...(item.audioLanguages || []),
+    ...(item.languages || []),
+  ]
+    .map((language) => String(language || '').trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(values));
+}
+
 export function mediaItemToMedia(item: MediaItem): Media {
   const firstRating = item.ratings.find((rating) => rating.value !== null);
   const rating =
@@ -135,6 +146,7 @@ export function mediaItemToMedia(item: MediaItem): Media {
       : item.kind === 'tv'
         ? item.episodeRuntimeMinutes
         : item.durationMinutes;
+  const audioLanguages = cleanLanguages(item);
 
   return {
     id: item.id,
@@ -144,7 +156,8 @@ export function mediaItemToMedia(item: MediaItem): Media {
     year: item.year || 0,
     rating,
     runtime: runtime ? `${runtime}m` : undefined,
-    language: item.languages[0] || 'Unknown',
+    language: item.languages[0] || audioLanguages[0] || 'Unknown',
+    audioLanguages,
     poster: item.posterUrl || item.backdropUrl || '',
     banner: item.backdropUrl || item.posterUrl || undefined,
     genres: item.genres,

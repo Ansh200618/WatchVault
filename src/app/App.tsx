@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { BottomNav, type Tab } from "./components/wv/BottomNav";
 import { Splash } from "./components/wv/screens/Splash";
@@ -40,8 +40,28 @@ function AppInner() {
   const [tab, setTab] = useState<Tab>("home");
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [selected, setSelected] = useState<Media | null>(null);
+  const [exitMessage, setExitMessage] = useState(false);
   const theme = prefs.theme;
   const setTheme = (t: "light" | "dark" | "amoled") => update({ theme: t });
+
+  const stageRef = useRef(stage);
+  const tabRef = useRef(tab);
+  const overlayRef = useRef(overlay);
+  const tabHistoryRef = useRef<Tab[]>([]);
+  const lastBackPressRef = useRef(0);
+  const allowExitRef = useRef(false);
+
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
+
+  useEffect(() => {
+    overlayRef.current = overlay;
+  }, [overlay]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme !== "light");
@@ -51,9 +71,81 @@ function AppInner() {
     if (prefs.onboarded && stage !== "main") setStage("main");
   }, [prefs.onboarded, stage]);
 
+  useEffect(() => {
+    window.history.replaceState({ watchVault: true }, document.title);
+    window.history.pushState({ watchVault: true }, document.title);
+
+    const keepInsideApp = () => {
+      window.history.pushState({ watchVault: true }, document.title);
+    };
+
+    const handleBack = () => {
+      if (allowExitRef.current) return;
+
+      if (stageRef.current !== "main") {
+        keepInsideApp();
+        return;
+      }
+
+      if (overlayRef.current === "tracker") {
+        setOverlay("detail");
+        setExitMessage(false);
+        keepInsideApp();
+        return;
+      }
+
+      if (overlayRef.current) {
+        setOverlay(null);
+        setExitMessage(false);
+        keepInsideApp();
+        return;
+      }
+
+      const previousTab = tabHistoryRef.current.pop();
+      if (previousTab) {
+        setTab(previousTab);
+        setExitMessage(false);
+        keepInsideApp();
+        return;
+      }
+
+      if (tabRef.current !== "home") {
+        setTab("home");
+        setExitMessage(false);
+        keepInsideApp();
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 2000) {
+        allowExitRef.current = true;
+        window.history.back();
+        return;
+      }
+
+      lastBackPressRef.current = now;
+      setExitMessage(true);
+      window.setTimeout(() => setExitMessage(false), 2000);
+      keepInsideApp();
+    };
+
+    window.addEventListener("popstate", handleBack);
+    return () => window.removeEventListener("popstate", handleBack);
+  }, []);
+
+  const navigateTab = (nextTab: Tab) => {
+    setOverlay(null);
+    setExitMessage(false);
+    setTab((current) => {
+      if (current !== nextTab) tabHistoryRef.current.push(current);
+      return nextTab;
+    });
+  };
+
   const openDetail = (m: Media) => {
     setSelected(m);
     setOverlay("detail");
+    setExitMessage(false);
     apiService.getMediaById(m.id)
       .then((item) => setSelected(mediaItemToMedia(item)))
       .catch(() => {
@@ -64,11 +156,11 @@ function AppInner() {
   const renderTab = () => {
     switch (tab) {
       case "home":
-        return <Home onOpen={openDetail} onNavigate={setTab} />;
+        return <Home onOpen={openDetail} onNavigate={navigateTab} />;
       case "discover":
         return <Discover onOpen={openDetail} />;
       case "library":
-        return <Library onOpen={openDetail} onDiscover={() => setTab("discover")} />;
+        return <Library onOpen={openDetail} onDiscover={() => navigateTab("discover")} />;
       case "calendar":
         return <CalendarScreen />;
       case "profile":
@@ -106,7 +198,7 @@ function AppInner() {
           {stage === "main" && (
             <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0">
               {renderTab()}
-              <BottomNav active={tab} onChange={setTab} />
+              <BottomNav active={tab} onChange={navigateTab} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -135,6 +227,21 @@ function AppInner() {
           {overlay === "upcoming" && (
             <motion.div key="upcoming" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
               <Upcoming onOpen={openDetail} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {exitMessage && (
+            <motion.div
+              key="exit-toast"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute left-5 right-5 bottom-24 z-50 rounded-2xl bg-white/95 px-4 py-3 text-center text-black shadow-2xl"
+              style={{ fontSize: 13, fontWeight: 800 }}
+            >
+              Press back again to exit
             </motion.div>
           )}
         </AnimatePresence>

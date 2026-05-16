@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { Media } from "../../../data";
 import { SearchBar, StatusChip } from "../shared";
 import { useLiveData } from "../../../services/liveData";
+import { apiService } from "../../../services/api";
 import { LoadingState } from "../states";
 
 const TABS = ["Watching", "Plan", "Completed", "Dropped", "On Hold", "Favorites"];
@@ -16,7 +17,9 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
   const [queryOpen, setQueryOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"recent" | "rating" | "title">("recent");
-  const { media, loading } = useLiveData();
+  const [message, setMessage] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const { media, loading, refresh } = useLiveData();
 
   const list = useMemo(() => {
     const targetStatus = statusForTab(tab);
@@ -31,6 +34,20 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
 
   const cycleSort = () => {
     setSort((current) => current === "recent" ? "rating" : current === "rating" ? "title" : "recent");
+  };
+
+  const removeItem = async (item: Media) => {
+    setRemovingId(item.id);
+    try {
+      await apiService.deleteLibraryItem(item.id);
+      setMessage(`${item.title} removed from ${tab.toLowerCase()}`);
+      await refresh();
+    } catch {
+      setMessage("Could not remove this title. Please try again.");
+    } finally {
+      setRemovingId(null);
+      window.setTimeout(() => setMessage(null), 2500);
+    }
   };
 
   return (
@@ -72,6 +89,12 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
         Sorted by {sort === "rating" ? "rating" : sort === "title" ? "title" : "recent activity"}
       </div>
 
+      {message && (
+        <div className="mx-5 mt-3 px-4 py-2 rounded-2xl bg-[#D9A441]/20 text-[#F0C97A]" style={{ fontSize: 12, fontWeight: 700 }}>
+          {message}
+        </div>
+      )}
+
       <div className="px-5 mt-4 space-y-3">
         {loading && media.length === 0 ? (
           <LoadingState />
@@ -85,27 +108,35 @@ export function Library({ onOpen, onDiscover }: { onOpen: (m: Media) => void; on
           </div>
         ) : (
           list.map((m) => (
-            <button key={m.id} onClick={() => onOpen(m)} className="w-full flex gap-3 p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-left" style={{ borderRadius: 24 }}>
-              <div className="w-20 h-28 rounded-2xl overflow-hidden">
+            <div key={m.id} className="w-full flex gap-3 p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]" style={{ borderRadius: 24 }}>
+              <button onClick={() => onOpen(m)} className="w-20 h-28 rounded-2xl overflow-hidden flex-shrink-0" aria-label={`Open ${m.title}`}>
                 <img src={m.poster} alt="" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#666666]" style={{ fontSize: 10 }}>{m.type}</span>
-                  <StatusChip status={m.status} />
-                </div>
-                <div className="mt-1 text-[#111] dark:text-white line-clamp-1" style={{ fontSize: 15, fontWeight: 600 }}>{m.title}</div>
-                <div className="text-[#666666]" style={{ fontSize: 11 }}>{m.lastEpisode || `${m.year} - ${m.runtime || "Details"}`}</div>
-                {m.progress !== undefined && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-[#E5E5E5] dark:bg-[#2A2A2A] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#D9A441]" style={{ width: `${m.progress}%` }} />
-                    </div>
-                    <span className="text-[#666666]" style={{ fontSize: 10 }}>{m.progress}%</span>
+              </button>
+              <div className="flex-1 min-w-0 text-left">
+                <button onClick={() => onOpen(m)} className="w-full text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#666666]" style={{ fontSize: 10 }}>{m.type}</span>
+                    <StatusChip status={m.status} />
                   </div>
-                )}
+                  <div className="mt-1 text-[#111] dark:text-white line-clamp-1" style={{ fontSize: 15, fontWeight: 600 }}>{m.title}</div>
+                  <div className="text-[#666666]" style={{ fontSize: 11 }}>{m.lastEpisode || `${m.year} - ${m.runtime || "Details"}`}</div>
+                </button>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-[#E5E5E5] dark:bg-[#2A2A2A] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#D9A441]" style={{ width: `${m.progress ?? 0}%` }} />
+                  </div>
+                  <span className="text-[#666666]" style={{ fontSize: 10 }}>{m.progress ?? 0}%</span>
+                </div>
+                <button
+                  onClick={() => void removeItem(m)}
+                  disabled={removingId === m.id}
+                  className="mt-3 px-3 py-2 rounded-full bg-red-500/15 text-red-400 border border-red-500/25 flex items-center gap-2 disabled:opacity-60"
+                  style={{ fontSize: 11, fontWeight: 700 }}
+                >
+                  <Trash2 size={13} /> {removingId === m.id ? "Removing..." : tab === "Favorites" ? "Remove favorite" : "Remove"}
+                </button>
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>
