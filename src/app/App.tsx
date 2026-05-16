@@ -67,17 +67,9 @@ function AppInner() {
   const lastBackPressRef = useRef(0);
   const allowExitRef = useRef(false);
 
-  useEffect(() => {
-    stageRef.current = stage;
-  }, [stage]);
-
-  useEffect(() => {
-    tabRef.current = tab;
-  }, [tab]);
-
-  useEffect(() => {
-    overlayRef.current = overlay;
-  }, [overlay]);
+  useEffect(() => { stageRef.current = stage; }, [stage]);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
+  useEffect(() => { overlayRef.current = overlay; }, [overlay]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme !== "light");
@@ -152,14 +144,10 @@ function AppInner() {
 
     const handleBrowserBack = () => {
       navigateBackInsideApp(keepInsideApp);
-      if (window.__watchvaultShouldExit) {
-        window.history.back();
-      }
+      if (window.__watchvaultShouldExit) window.history.back();
     };
 
-    const handleNativeBack = () => {
-      navigateBackInsideApp();
-    };
+    const handleNativeBack = () => navigateBackInsideApp();
 
     window.addEventListener("popstate", handleBrowserBack);
     window.addEventListener("watchvault:native-back", handleNativeBack);
@@ -187,9 +175,7 @@ function AppInner() {
         const fresh = mediaItemToMedia(item);
         setSelected((current) => mergeProgressFields(fresh, current || m));
       })
-      .catch(() => {
-        // Keep the already selected list item if the detail API is unavailable.
-      });
+      .catch(() => {});
   };
 
   const updateSelectedProgress = (patch: Partial<Media>) => {
@@ -198,16 +184,11 @@ function AppInner() {
 
   const renderTab = () => {
     switch (tab) {
-      case "home":
-        return <Home onOpen={openDetail} onNavigate={navigateTab} />;
-      case "discover":
-        return <Discover onOpen={openDetail} />;
-      case "library":
-        return <Library onOpen={openDetail} onDiscover={() => navigateTab("discover")} />;
-      case "calendar":
-        return <CalendarScreen />;
-      case "profile":
-        return <Profile onSettings={() => setOverlay("settings")} onBrain={() => setOverlay("brain")} />;
+      case "home": return <Home onOpen={openDetail} onNavigate={navigateTab} />;
+      case "discover": return <Discover onOpen={openDetail} />;
+      case "library": return <Library onOpen={openDetail} onDiscover={() => navigateTab("discover")} />;
+      case "calendar": return <CalendarScreen />;
+      case "profile": return <Profile onSettings={() => setOverlay("settings")} onBrain={() => setOverlay("brain")} />;
     }
   };
 
@@ -218,60 +199,25 @@ function AppInner() {
       className="fixed inset-0 w-screen h-screen overflow-hidden"
       style={{
         background: appBg,
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-        paddingLeft: "env(safe-area-inset-left)",
-        paddingRight: "env(safe-area-inset-right)",
+        padding: 0,
+        margin: 0,
       }}
     >
       <div className="relative w-full h-full overflow-hidden" style={{ background: appBg }}>
         <DynamicBackdrop theme={theme} />
 
         <AnimatePresence mode="wait">
-          {stage === "splash" && (
-            <motion.div key="splash" exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0">
-              <Splash onDone={() => setStage("onboarding")} />
-            </motion.div>
-          )}
-          {stage === "onboarding" && (
-            <motion.div key="onb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-              <Onboarding onDone={() => setStage("main")} />
-            </motion.div>
-          )}
-          {stage === "main" && (
-            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0">
-              {renderTab()}
-              <BottomNav active={tab} onChange={navigateTab} />
-            </motion.div>
-          )}
+          {stage === "splash" && <motion.div key="splash" exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute inset-0"><Splash onDone={() => setStage("onboarding")} /></motion.div>}
+          {stage === "onboarding" && <motion.div key="onb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0"><Onboarding onDone={() => setStage("main")} /></motion.div>}
+          {stage === "main" && <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0">{renderTab()}<BottomNav active={tab} onChange={navigateTab} /></motion.div>}
         </AnimatePresence>
 
         <AnimatePresence>
-          {overlay === "detail" && selected && (
-            <motion.div key="detail" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <Detail m={selected} onBack={() => setOverlay(null)} onOpenTracker={() => setOverlay("tracker")} />
-            </motion.div>
-          )}
-          {overlay === "tracker" && selected && (
-            <motion.div key="tracker" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <Tracker m={selected} onBack={() => setOverlay("detail")} onProgressChange={updateSelectedProgress} />
-            </motion.div>
-          )}
-          {overlay === "brain" && (
-            <motion.div key="brain" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <Brain onBack={() => setOverlay(null)} />
-            </motion.div>
-          )}
-          {overlay === "settings" && (
-            <motion.div key="settings" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <SettingsScreen onBack={() => setOverlay(null)} theme={theme} setTheme={setTheme} />
-            </motion.div>
-          )}
-          {overlay === "upcoming" && (
-            <motion.div key="upcoming" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}>
-              <Upcoming onOpen={openDetail} />
-            </motion.div>
-          )}
+          {overlay === "detail" && selected && <motion.div key="detail" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}><Detail m={selected} onBack={() => setOverlay(null)} onOpenTracker={() => setOverlay("tracker")} /></motion.div>}
+          {overlay === "tracker" && selected && <motion.div key="tracker" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}><Tracker m={selected} onBack={() => setOverlay("detail")} onProgressChange={updateSelectedProgress} /></motion.div>}
+          {overlay === "brain" && <motion.div key="brain" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}><Brain onBack={() => setOverlay(null)} /></motion.div>}
+          {overlay === "settings" && <motion.div key="settings" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}><SettingsScreen onBack={() => setOverlay(null)} theme={theme} setTheme={setTheme} /></motion.div>}
+          {overlay === "upcoming" && <motion.div key="upcoming" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "tween", duration: 0.25 }} className="absolute inset-0 z-30" style={{ background: "#000" }}><Upcoming onOpen={openDetail} /></motion.div>}
         </AnimatePresence>
 
         <AnimatePresence>
@@ -281,8 +227,8 @@ function AppInner() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute left-5 right-5 bottom-24 z-50 rounded-2xl bg-white/95 px-4 py-3 text-center text-black shadow-2xl"
-              style={{ fontSize: 13, fontWeight: 800 }}
+              className="absolute left-5 right-5 z-50 rounded-2xl bg-white/95 px-4 py-3 text-center text-black shadow-2xl"
+              style={{ fontSize: 13, fontWeight: 800, bottom: "calc(6rem + env(safe-area-inset-bottom))" }}
             >
               Press back again to exit
             </motion.div>
