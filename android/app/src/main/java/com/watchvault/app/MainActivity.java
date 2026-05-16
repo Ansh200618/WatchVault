@@ -153,10 +153,14 @@ public class MainActivity extends BridgeActivity {
         WindowCompat.setDecorFitsSystemWindows(window, false);
 
         window.setStatusBarColor(Color.TRANSPARENT);
-        window.setNavigationBarColor(WATCHVAULT_SYSTEM_BAR_COLOR);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarColor(Color.TRANSPARENT);
+        } else {
+            window.setNavigationBarColor(WATCHVAULT_SYSTEM_BAR_COLOR);
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.setNavigationBarDividerColor(WATCHVAULT_SYSTEM_BAR_COLOR);
+            window.setNavigationBarDividerColor(Color.TRANSPARENT);
             window.getAttributes().layoutInDisplayCutoutMode =
                     android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
