@@ -10,6 +10,24 @@ import { usePrefs } from "../prefs";
 import { useLiveData } from "../../../services/liveData";
 import { LoadingState, ErrorState } from "../states";
 
+const FILTERS = ["All", "Movies", "Series", "Anime", "Upcoming"] as const;
+type HomeFilter = typeof FILTERS[number];
+
+function filterToKind(filter: HomeFilter) {
+  if (filter === "Movies") return "movie" as const;
+  if (filter === "Series") return "tv" as const;
+  if (filter === "Anime") return "anime" as const;
+  return undefined;
+}
+
+function bucketForFilter(filter: HomeFilter, buckets: ReturnType<typeof useLiveData>["mediaBuckets"], upcoming: Media[]) {
+  if (filter === "Movies") return buckets.movies;
+  if (filter === "Series") return buckets.series;
+  if (filter === "Anime") return buckets.anime;
+  if (filter === "Upcoming") return upcoming;
+  return buckets.all;
+}
+
 export function Home({
   onOpen,
   onNavigate,
@@ -17,40 +35,25 @@ export function Home({
   onOpen: (m: Media) => void;
   onNavigate: (tab: Tab) => void;
 }) {
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<HomeFilter>("All");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Media[] | null>(null);
   const { prefs } = usePrefs();
-  const { media, upcoming, insights, loading, error, refresh, searchMedia } = useLiveData();
+  const { media, mediaBuckets, upcoming, insights, loading, error, refresh, searchMedia } = useLiveData();
 
   const contentLabel = filter === "All" ? "Trending" : filter;
-  const baseMedia = query.trim() ? searchResults ?? [] : media;
-  const visibleMedia = useMemo(() => {
-    return baseMedia.filter((m) => {
-      if (filter === "All") return true;
-      if (filter === "Movies") return m.type === "Movie";
-      if (filter === "Series") return m.type === "Series";
-      if (filter === "Anime") return m.type === "Anime";
-      if (filter === "Upcoming") return m.status === "Upcoming";
-      return true;
-    });
-  }, [baseMedia, filter]);
-
-  const upcomingVisible = useMemo(() => {
-    if (filter === "All" || filter === "Upcoming") return upcoming;
-    const type = filter === "Movies" ? "Movie" : filter === "Series" ? "Series" : filter === "Anime" ? "Anime" : "";
-    return upcoming.filter((m) => m.type === type);
-  }, [filter, upcoming]);
+  const categoryMedia = useMemo(() => bucketForFilter(filter, mediaBuckets, upcoming), [filter, mediaBuckets, upcoming]);
+  const visibleMedia = query.trim() ? searchResults ?? [] : categoryMedia;
   const continueList = visibleMedia.filter((m) => m.status === "Watching");
-  const trending = visibleMedia.filter((m) => m.rating >= 7);
-  const featured = visibleMedia[0] || upcomingVisible[0];
+  const trending = visibleMedia.filter((m) => m.rating >= 7 || m.status === "Upcoming");
+  const featured = visibleMedia[0] || categoryMedia[0] || media[0] || upcoming[0];
 
   useSetArtwork(featured?.poster || media[0]?.poster);
 
   useEffect(() => {
     const text = query.trim();
-    const kind = filter === "Movies" ? "movie" : filter === "Series" ? "tv" : filter === "Anime" ? "anime" : undefined;
+    const kind = filterToKind(filter);
 
     if (!text) {
       setSearchResults(null);
@@ -63,6 +66,19 @@ export function Home({
 
     return () => window.clearTimeout(timeout);
   }, [filter, query, searchMedia]);
+
+  const openInsightAction = (insight: { action: string; mediaId?: string }) => {
+    const target = insight.mediaId ? media.find((item) => item.id === insight.mediaId) || upcoming.find((item) => item.id === insight.mediaId) : null;
+    if (target) {
+      onOpen(target);
+      return;
+    }
+
+    const action = insight.action.toLowerCase();
+    if (action.includes("discover")) onNavigate("discover");
+    else if (action.includes("calendar")) onNavigate("calendar");
+    else onNavigate("library");
+  };
 
   return (
     <div className="h-full overflow-y-auto pb-28">
@@ -127,7 +143,7 @@ export function Home({
       </div>
 
       <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar px-5 pb-1">
-        {["All", "Movies", "Series", "Anime", "Upcoming"].map((o) => (
+        {FILTERS.map((o) => (
           <GlassChip key={o} active={filter === o} onClick={() => setFilter(o)}>{o}</GlassChip>
         ))}
       </div>
@@ -186,16 +202,16 @@ export function Home({
         </>
       )}
 
-      {upcomingVisible.length > 0 && (
+      {filter !== "Upcoming" && upcoming.length > 0 && (
         <>
           <SectionHeader title="Upcoming Releases" action="Calendar" onAction={() => onNavigate("calendar")} />
           <div className="px-5 space-y-3">
-            {upcomingVisible.slice(0, 2).map((m) => <UpcomingCard key={m.id} m={m} onClick={() => onOpen(m)} />)}
+            {upcoming.slice(0, 2).map((m) => <UpcomingCard key={m.id} m={m} onClick={() => onOpen(m)} />)}
           </div>
         </>
       )}
 
-      {!loading && !featured && !error && (
+      {!loading && visibleMedia.length === 0 && !error && (
         <div className="px-5 mt-6">
           <div className="p-6 text-center bg-white/10 border border-white/15 text-white" style={{ borderRadius: 24, fontSize: 13 }}>
             No {filter.toLowerCase()} found right now. Try another filter or search.
@@ -215,7 +231,7 @@ export function Home({
                 <div className="flex-1">
                   <div className="text-[#111] dark:text-white" style={{ fontSize: 14, fontWeight: 600 }}>{i.text}</div>
                   <button
-                    onClick={() => onNavigate(i.action.toLowerCase().includes("discover") ? "discover" : "library")}
+                    onClick={() => openInsightAction(i)}
                     className="mt-2 px-3 py-1.5 rounded-full bg-[#111] text-white dark:bg-white dark:text-black"
                     style={{ fontSize: 11, fontWeight: 600 }}
                   >
