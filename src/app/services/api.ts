@@ -1,22 +1,23 @@
 import { MediaItem, MediaKind, LibraryStatus, type Media, type ApiStatusItem, type UserLibraryItem, type WatchStatsItem } from '../data';
 
-// Base URL for backend API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Public backend used by production APK builds. VITE_API_BASE_URL can still override this.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://watchvault-backend-2lrv.onrender.com/api').replace(/\/$/, '');
+
+const pathFor = (path: string) => `${API_BASE_URL}${path}`;
+const seg = (value: string) => encodeURIComponent(value);
 
 /**
  * API Service for communicating with WatchVault backend
  */
 export const apiService = {
-  // Health check
   healthCheck: async () => {
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await fetch(pathFor('/health'));
     if (!response.ok) throw new Error('Health check failed');
     return response.json();
   },
 
-  // Media endpoints
   getPopularMedia: async (): Promise<MediaItem[]> => {
-    const response = await fetch(`${API_BASE_URL}/media/popular`);
+    const response = await fetch(pathFor('/media/popular'));
     if (!response.ok) throw new Error('Failed to fetch popular media');
     return response.json();
   },
@@ -26,32 +27,31 @@ export const apiService = {
     params.append('q', query);
     if (kind) params.append('kind', kind);
 
-    const response = await fetch(`${API_BASE_URL}/media/search?${params.toString()}`);
+    const response = await fetch(pathFor(`/media/search?${params.toString()}`));
     if (!response.ok) throw new Error('Failed to search media');
     return response.json();
   },
 
   getMediaById: async (id: string): Promise<MediaItem> => {
-    const response = await fetch(`${API_BASE_URL}/media/${id}`);
+    const response = await fetch(pathFor(`/media/${seg(id)}`));
     if (!response.ok) throw new Error('Failed to fetch media details');
     return response.json();
   },
 
-  // Library endpoints
   getUserLibrary: async (): Promise<UserLibraryItem[]> => {
-    const response = await fetch(`${API_BASE_URL}/user/library`);
+    const response = await fetch(pathFor('/user/library'));
     if (!response.ok) throw new Error('Failed to fetch user library');
     return response.json();
   },
 
   getStats: async (): Promise<WatchStatsItem> => {
-    const response = await fetch(`${API_BASE_URL}/user/stats`);
+    const response = await fetch(pathFor('/user/stats'));
     if (!response.ok) throw new Error('Failed to fetch watch stats');
     return response.json();
   },
 
   updateLibraryItem: async (mediaId: string, updates: Partial<{ status: LibraryStatus; progressPercent: number; lastEpisode: { season: number; episode: number } | null; rating: number | null; notes: string | null; media: MediaItem | null }>) => {
-    const response = await fetch(`${API_BASE_URL}/user/library/${mediaId}`, {
+    const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
@@ -61,7 +61,7 @@ export const apiService = {
   },
 
   addLibraryItem: async (item: { mediaId: string; status?: LibraryStatus; progressPercent?: number; lastEpisode?: { season: number; episode: number } | null; rating?: number | null; notes?: string | null; media?: MediaItem | null }) => {
-    const response = await fetch(`${API_BASE_URL}/user/library`, {
+    const response = await fetch(pathFor('/user/library'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item)
@@ -70,22 +70,27 @@ export const apiService = {
     return response.json();
   },
 
+  deleteLibraryItem: async (mediaId: string) => {
+    const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE' });
+    if (!response.ok) throw new Error('Failed to remove library item');
+    return response.json();
+  },
+
   getSeasonEpisodes: async (mediaId: string, seasonNumber: number) => {
-    const response = await fetch(`${API_BASE_URL}/media/${mediaId}/season/${seasonNumber}`);
+    const response = await fetch(pathFor(`/media/${seg(mediaId)}/season/${seasonNumber}`));
     if (!response.ok) throw new Error('Failed to fetch season episodes');
     return response.json();
   },
 
-  // External API proxies (to keep keys secure)
   searchOMDb: async (params: { i?: string; t?: string; y?: string; type?: string; page?: string }) => {
     const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE_URL}/omdb?${queryParams}`);
+    const response = await fetch(pathFor(`/omdb?${queryParams}`));
     if (!response.ok) throw new Error('OMDb API request failed');
     return response.json();
   },
 
   searchAniList: async (query: string, variables: Record<string, any> = {}) => {
-    const response = await fetch(`${API_BASE_URL}/anilist`, {
+    const response = await fetch(pathFor('/anilist'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, variables })
@@ -96,14 +101,14 @@ export const apiService = {
 
   searchJikan: async (endpoint: string, params: Record<string, string> = {}) => {
     const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE_URL}/jikan/${endpoint}?${queryParams}`);
+    const response = await fetch(pathFor(`/jikan/${endpoint}?${queryParams}`));
     if (!response.ok) throw new Error('Jikan API request failed');
     return response.json();
   },
 
   searchWatchmode: async (endpoint: string, params: Record<string, string> = {}) => {
     const queryParams = new URLSearchParams(params).toString();
-    const response = await fetch(`${API_BASE_URL}/watchmode/${endpoint}?${queryParams}`);
+    const response = await fetch(pathFor(`/watchmode/${endpoint}?${queryParams}`));
     if (!response.ok) throw new Error('Watchmode API request failed');
     return response.json();
   }
@@ -145,7 +150,7 @@ export function mediaItemToMedia(item: MediaItem): Media {
     overview: item.overview || 'No overview available.',
     releaseDate: releaseDate || undefined,
     status: undefined,
-    providers: item.providers.map((provider) => provider.name),
+    providers: item.providers.map((provider: any) => provider.name || provider.providerName).filter(Boolean),
     ratings: item.ratings,
     trailerUrl: item.trailerUrl,
     seasonDetails:
@@ -174,7 +179,6 @@ export function apiStatusToCards(status: Record<string, string>): ApiStatusItem[
   }));
 }
 
-// Helper function to handle API errors with user-friendly messages
 export const handleApiError = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message;
