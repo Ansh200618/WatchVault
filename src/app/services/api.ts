@@ -55,6 +55,13 @@ function userHeaders(extra: Record<string, string> = {}) {
   };
 }
 
+async function jsonOrThrow(response: Response, fallbackMessage: string) {
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : {};
+  if (!response.ok) throw new Error(body?.message || body?.error || fallbackMessage);
+  return body;
+}
+
 /**
  * API Service for communicating with WatchVault backend
  */
@@ -106,8 +113,7 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates)
     });
-    if (!response.ok) throw new Error('Failed to update library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to update library item');
   },
 
   addLibraryItem: async (item: { mediaId: string } & LibraryMutation) => {
@@ -116,20 +122,17 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(item)
     });
-    if (!response.ok) throw new Error('Failed to add library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to add library item');
   },
 
   deleteLibraryItem: async (mediaId: string) => {
     const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE', headers: userHeaders() });
-    if (!response.ok) throw new Error('Failed to remove library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to remove library item');
   },
 
   exportUserData: async () => {
     const response = await fetch(pathFor('/user/export'), { headers: userHeaders() });
-    if (!response.ok) throw new Error('Failed to export progress');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to export progress');
   },
 
   importUserData: async (backup: unknown) => {
@@ -138,8 +141,7 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(backup),
     });
-    if (!response.ok) throw new Error('Failed to import progress');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to import progress');
   },
 
   recoverUserData: async (userId: string) => {
@@ -148,8 +150,34 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ userId }),
     });
-    if (!response.ok) throw new Error('Failed to recover progress');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to recover progress');
+  },
+
+  getUserDevices: async () => {
+    const response = await fetch(pathFor('/user/devices'), { headers: userHeaders() });
+    return jsonOrThrow(response, 'Failed to check linked devices');
+  },
+
+  getUserProfile: async () => {
+    const response = await fetch(pathFor('/user/profile'), { headers: userHeaders() });
+    return jsonOrThrow(response, 'Failed to load account profile');
+  },
+
+  updateUserProfile: async (username: string) => {
+    const response = await fetch(pathFor('/user/profile'), {
+      method: 'PATCH',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ username }),
+    });
+    return jsonOrThrow(response, 'Failed to update account profile');
+  },
+
+  deleteUserAccount: async () => {
+    const response = await fetch(pathFor('/user/account'), {
+      method: 'DELETE',
+      headers: userHeaders(),
+    });
+    return jsonOrThrow(response, 'Failed to delete account');
   },
 
   getSeasonEpisodes: async (mediaId: string, seasonNumber: number) => {
