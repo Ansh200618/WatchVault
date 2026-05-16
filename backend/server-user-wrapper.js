@@ -7,6 +7,7 @@ const shouldPersistLibrary = process.env.NODE_ENV !== "test";
 const dataDir = path.join(__dirname, "data");
 const librariesFile = path.join(dataDir, "libraries.json");
 const devicesFile = path.join(dataDir, "devices.json");
+const profilesFile = path.join(dataDir, "profiles.json");
 const PORT = Number(process.env.PORT || 5000);
 const MAX_DEVICES_PER_USER = 5;
 
@@ -41,18 +42,49 @@ function writeJsonObject(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2));
 }
 
-function registerDevice(req, res) {
-  const userId = userIdFromRequest(req);
+function cleanUsername(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]/g, "")
+    .slice(0, 24);
+}
+
+function usernameValidationError(username) {
+  if (!username || username.length < 3) return "Username must be at least 3 characters.";
+  if (username.length > 24) return "Username must be 24 characters or less.";
+  if (!/^[a-z0-9_.]+$/.test(username)) return "Username can only use letters, numbers, underscore, and dot.";
+  if (/^[._]|[._]$/.test(username)) return "Username cannot start or end with dot or underscore.";
+  return null;
+}
+
+function getUserDevices(userId, devices = readJsonObject(devicesFile, {})) {
+  return Array.isArray(devices[userId]) ? devices[userId] : [];
+}
+
+function safeDevice(device, currentDeviceId) {
+  const id = String(device.deviceId || "");
+  return {
+    id: id ? `${id.slice(0, 8)}…${id.slice(-4)}` : "Unknown device",
+    current: id === currentDeviceId,
+    firstSeenAt: device.firstSeenAt || null,
+    lastSeenAt: device.lastSeenAt || null,
+  };
+}
+
+function registerDeviceForUser(userId, req, res) {
+  const cleanedUserId = cleanUserId(userId);
   const deviceId = deviceIdFromRequest(req);
-  if (userId === "anonymous" || deviceId === "dev_unknown") return true;
+  if (cleanedUserId === "anonymous" || deviceId === "dev_unknown") return true;
 
   const devices = readJsonObject(devicesFile, {});
-  const userDevices = Array.isArray(devices[userId]) ? devices[userId] : [];
+  const userDevices = getUserDevices(cleanedUserId, devices);
   const now = new Date().toISOString();
   const existing = userDevices.find((device) => device.deviceId === deviceId);
 
   if (existing) {
     existing.lastSeenAt = now;
+    devices[cleanedUserId] = userDevices;
     writeJsonObject(devicesFile, devices);
     return true;
   }
@@ -68,9 +100,13 @@ function registerDevice(req, res) {
   }
 
   userDevices.push({ deviceId, firstSeenAt: now, lastSeenAt: now });
-  devices[userId] = userDevices;
+  devices[cleanedUserId] = userDevices;
   writeJsonObject(devicesFile, devices);
   return true;
+}
+
+function registerDevice(req, res) {
+  return registerDeviceForUser(userIdFromRequest(req), req, res);
 }
 
 function compactWatchedEpisodes(raw) {
@@ -260,7 +296,7 @@ app.get("/api/user/export", (req, res) => {
   if (!registerDevice(req, res)) return;
   const { userId, library } = getUserLibrary(req);
   const devices = readJsonObject(devicesFile, {});
-  const linkedDevices = Array.isArray(devices[userId]) ? devices[userId].length : 0;
+  const linkedDevices = getUserDevices(userId, devices).length;
   res.json({
     app: "WatchVault",
     version: 1,
@@ -282,17 +318,68 @@ app.post("/api/user/import", (req, res) => {
 });
 
 app.post("/api/user/recover", (req, res) => {
-  if (!registerDevice(req, res)) return;
   const requestedUserId = cleanUserId(req.body?.userId);
+  if (!registerDeviceForUser(requestedUserId, req, res)) return;
   const libraries = getLibraries();
   const library = Array.isArray(libraries[requestedUserId]) ? libraries[requestedUserId] : [];
   res.json({ success: true, userId: requestedUserId, found: library.length > 0, itemCount: library.length, library });
+});
+
+app.get("/api/user/devices", (req, res) => {
+  if (!registerDevice(req, res)) return;
+  const userId = userIdFromRequest(req);
+  const currentDeviceId = deviceIdFromRequest(req);
+  const devices = getUserDevices(userId).map((device) => safeDevice(device, currentDeviceId));
+  res.json({ userId, linkedDevices: devices.length, maxDevices: MAX_DEVICES_PER_USER, devices });
+});
+
+app.get("/api/user/profile", (req, res) => {
+  if (!registerDevice(req, res)) return;
+  const userId = userIdFromRequest(req);
+  const profiles = readJsonObject(profilesFile, {});
+  res.json({ userId, username: profiles[userId]?.username || null, updatedAt: profiles[userId]?.updatedAt || null });
+});
+
+app.patch("/api/user/profile", (req, res) => {
+  if (!registerDevice(req, res)) return;
+  const userId = userIdFromRequest(req);
+  const username = cleanUsername(req.body?.username);
+  const validationError = usernameValidationError(username);
+  if (validationError) return res.status(400).json({ error: validationError });
+
+  const profiles = readJsonObject(profilesFile, {});
+  const takenBy = Object.entries(profiles).find(([otherUserId, profile]) => otherUserId !== userId && profile?.username === username);
+  if (takenBy) return res.status(409).json({ error: "Username is already taken." });
+
+  const now = new Date().toISOString();
+  profiles[userId] = {
+    username,
+    createdAt: profiles[userId]?.createdAt || now,
+    updatedAt: now,
+  };
+  writeJsonObject(profilesFile, profiles);
+  res.json({ success: true, userId, username, updatedAt: now });
+});
+
+app.delete("/api/user/account", (req, res) => {
+  const userId = userIdFromRequest(req);
+  const libraries = readJsonObject(librariesFile, {});
+  const devices = readJsonObject(devicesFile, {});
+  const profiles = readJsonObject(profilesFile, {});
+  delete libraries[userId];
+  delete devices[userId];
+  delete profiles[userId];
+  writeJsonObject(librariesFile, libraries);
+  writeJsonObject(devicesFile, devices);
+  writeJsonObject(profilesFile, profiles);
+  res.json({ success: true, deletedUserId: userId });
 });
 
 if (process.env.NODE_ENV === "test") {
   app.post("/api/test/reset", (req, res) => {
     saveLibraries({});
     writeJsonObject(devicesFile, {});
+    writeJsonObject(profilesFile, {});
     res.json({ success: true });
   });
 }
