@@ -37,7 +37,7 @@ jobs:
           java-version: 21
       - uses: android-actions/setup-android@v3
       - run: chmod +x android/gradlew
-      - name: Build debug APK
+      - name: Build APK
         run: cd android && ./gradlew assembleDebug --stacktrace --no-daemon -PAPP_VERSION_CODE=${APP_VERSION_CODE} -PAPP_VERSION_NAME=${APP_VERSION_NAME}
       - name: Prepare APK
         run: |
@@ -45,7 +45,7 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk release/WatchVault-${APP_VERSION_NAME}.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: WatchVault-debug-apk
+          name: WatchVault-${{ env.APP_VERSION_NAME }}
           path: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
       - name: Publish APK to GitHub Releases
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -53,6 +53,6 @@ jobs:
         with:
           tag_name: latest-apk
           name: WatchVault ${{ env.APP_VERSION_NAME }}
-          body: Latest WatchVault testing APK. Version ${{ env.APP_VERSION_NAME }}. Built from commit ${{ github.sha }}.
+          body: Latest WatchVault APK. Version ${{ env.APP_VERSION_NAME }}. Built from commit ${{ github.sha }}.
           files: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
           make_latest: true
