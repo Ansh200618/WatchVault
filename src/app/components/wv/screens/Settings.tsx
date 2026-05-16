@@ -1,10 +1,11 @@
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useLiveData } from "../../../services/liveData";
+import { CURRENT_APP_VERSION, checkForAppUpdate, openUpdateUrl, type AppUpdateInfo } from "../../../services/appUpdate";
 import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
 import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
 
-type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "about";
+type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "updates" | "about";
 
 export function SettingsScreen({
   onBack,
@@ -19,6 +20,8 @@ export function SettingsScreen({
   const { prefs, update, reset } = usePrefs();
   const [page, setPage] = useState<SettingsPage>("main");
   const [message, setMessage] = useState<string | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
 
   const showMessage = (text: string) => {
     setMessage(text);
@@ -37,6 +40,19 @@ export function SettingsScreen({
     showMessage(result.message);
   };
 
+  const checkUpdates = async () => {
+    setCheckingUpdate(true);
+    try {
+      const info = await checkForAppUpdate();
+      setUpdateInfo(info);
+      showMessage(info.updateAvailable ? "New update is available." : "You are using the latest version.");
+    } catch {
+      showMessage("Could not check for updates right now.");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   const clearSavedPreferences = () => {
     const ok = window.confirm("Clear your saved preferences from this device?");
     if (!ok) return;
@@ -52,11 +68,13 @@ export function SettingsScreen({
     region: "Region",
     languages: "Languages",
     content: "Content",
+    updates: "App Update",
     about: "About",
   };
 
   const languageSummary = prefs.languages.length ? prefs.languages.join(", ") : "None selected";
   const contentSummary = prefs.contentTypes.length ? prefs.contentTypes.join(", ") : "None selected";
+  const latestVersion = updateInfo?.latestVersion || "Check now";
 
   return (
     <div className="h-full overflow-y-auto pb-28">
@@ -99,9 +117,10 @@ export function SettingsScreen({
           </SettingsGroup>
 
           <SettingsGroup title="App">
+            <Row label="App update" value={latestVersion} onClick={() => setPage("updates")} />
             <Row label="Refresh content" value="Now" onClick={() => refresh().then(() => showMessage("Latest content loaded."))} />
             <Row label="Clear saved preferences" value="Reset" onClick={clearSavedPreferences} danger />
-            <Row label="About WatchVault" value="v1.0.0" onClick={() => setPage("about")} />
+            <Row label="About WatchVault" value={`v${CURRENT_APP_VERSION}`} onClick={() => setPage("about")} />
           </SettingsGroup>
         </>
       )}
@@ -167,6 +186,48 @@ export function SettingsScreen({
             );
           })}
         </SettingsGroup>
+      )}
+
+      {page === "updates" && (
+        <Section title="Update status">
+          <div className="p-5 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]" style={{ borderRadius: 26 }}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[#111] dark:text-white" style={{ fontSize: 18, fontWeight: 800 }}>WatchVault</div>
+                <div className="text-[#666666] mt-1" style={{ fontSize: 12 }}>Current version: v{CURRENT_APP_VERSION}</div>
+                <div className="text-[#666666]" style={{ fontSize: 12 }}>Latest version: {updateInfo?.latestVersion ? `v${updateInfo.latestVersion}` : "Not checked"}</div>
+              </div>
+              <div className={`px-3 py-1.5 rounded-full ${updateInfo?.updateAvailable ? "bg-[#D9A441]/20 text-[#D9A441]" : "bg-white/10 text-[#666666]"}`} style={{ fontSize: 11, fontWeight: 800 }}>
+                {updateInfo?.updateAvailable ? "Update ready" : "Up to date"}
+              </div>
+            </div>
+
+            {updateInfo?.notes && (
+              <div className="mt-4 p-3 rounded-2xl bg-[#F6F6F6] dark:bg-[#1A1A1A] text-[#666666] whitespace-pre-line" style={{ fontSize: 12, lineHeight: 1.5 }}>
+                {updateInfo.notes.slice(0, 500)}
+              </div>
+            )}
+
+            <button
+              onClick={() => void checkUpdates()}
+              disabled={checkingUpdate}
+              className="mt-4 w-full py-3 rounded-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ fontSize: 13, fontWeight: 800 }}
+            >
+              <RefreshCw size={15} /> {checkingUpdate ? "Checking..." : "Check for Update"}
+            </button>
+
+            {updateInfo?.updateAvailable && updateInfo.apkUrl && (
+              <button
+                onClick={() => openUpdateUrl(updateInfo.apkUrl!)}
+                className="mt-3 w-full py-3 rounded-full bg-[#D9A441] text-black flex items-center justify-center gap-2"
+                style={{ fontSize: 13, fontWeight: 900 }}
+              >
+                <Download size={15} /> Update Now
+              </button>
+            )}
+          </div>
+        </Section>
       )}
 
       {page === "about" && (
