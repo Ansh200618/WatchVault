@@ -7,6 +7,14 @@ import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
 
 type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "updates" | "about";
 
+declare global {
+  interface Window {
+    WatchVaultAndroid?: {
+      startUpdate?: (url: string) => void;
+    };
+  }
+}
+
 export function SettingsScreen({
   onBack,
   theme,
@@ -51,6 +59,16 @@ export function SettingsScreen({
     } finally {
       setCheckingUpdate(false);
     }
+  };
+
+  const startAppUpdate = (url: string) => {
+    if (window.WatchVaultAndroid?.startUpdate) {
+      window.WatchVaultAndroid.startUpdate(url);
+      showMessage("Downloading update inside WatchVault...");
+      return;
+    }
+
+    openUpdateUrl(url);
   };
 
   const clearSavedPreferences = () => {
@@ -219,7 +237,7 @@ export function SettingsScreen({
 
             {updateInfo?.updateAvailable && updateInfo.apkUrl && (
               <button
-                onClick={() => openUpdateUrl(updateInfo.apkUrl!)}
+                onClick={() => startAppUpdate(updateInfo.apkUrl!)}
                 className="mt-3 w-full py-3 rounded-full bg-[#D9A441] text-black flex items-center justify-center gap-2"
                 style={{ fontSize: 13, fontWeight: 900 }}
               >
