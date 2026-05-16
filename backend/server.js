@@ -118,6 +118,7 @@ function mapTmdbSummary(item, fallbackKind) {
     ratings: [{ source: "TMDB", value: item.vote_average ? Number(item.vote_average.toFixed(1)) : null, scale: 10, votes: item.vote_count || null }],
     providers: [],
     trailerUrl: null,
+    releaseType: kind === "movie" ? "movie" : "season",
     ...(kind === "movie"
       ? { runtimeMinutes: null, releaseDate: item.release_date || null }
       : {
@@ -129,6 +130,57 @@ function mapTmdbSummary(item, fallbackKind) {
           status: "Returning",
           seasons: [],
         }),
+  });
+}
+
+function mapTmdbEpisodeRelease(show, episode, seasonNumber) {
+  const title = titleFromTmdb(show);
+  return cacheMedia({
+    id: `tmdb:tv:${show.id}:season:${seasonNumber}:episode:${episode.episode_number}`,
+    kind: "tv",
+    title,
+    parentTitle: title,
+    originalTitle: show.original_name || show.name || null,
+    year: yearFromDate(episode.air_date || show.first_air_date),
+    posterUrl: poster(show.poster_path),
+    backdropUrl: backdrop(show.backdrop_path || show.poster_path),
+    overview: episode.overview || show.overview || null,
+    genres: [],
+    languages: show.original_language ? [String(show.original_language).toUpperCase()] : [],
+    audioLanguages: show.original_language ? [String(show.original_language).toUpperCase()] : [],
+    ratings: [{ source: "TMDB", value: show.vote_average ? Number(show.vote_average.toFixed(1)) : null, scale: 10, votes: show.vote_count || null }],
+    providers: [],
+    trailerUrl: null,
+    releaseType: "episode",
+    seasonNumber,
+    episodeNumber: episode.episode_number,
+    episodeTitle: episode.name || null,
+    firstAirDate: episode.air_date || show.first_air_date || null,
+    lastAirDate: null,
+    episodeRuntimeMinutes: episode.runtime || null,
+    seasonCount: 0,
+    episodeCount: 0,
+    status: "Returning",
+    seasons: [{
+      id: `tmdb:tv:${show.id}:season:${seasonNumber}`,
+      seasonNumber,
+      name: `Season ${seasonNumber}`,
+      episodeCount: 0,
+      airDate: episode.air_date || null,
+      posterUrl: poster(show.poster_path),
+      watchedCount: 0,
+      episodes: [{
+        id: `tmdb:tv:${show.id}:season:${seasonNumber}:episode:${episode.episode_number}`,
+        seasonNumber,
+        episodeNumber: episode.episode_number,
+        title: episode.name || null,
+        airDate: episode.air_date || null,
+        runtimeMinutes: episode.runtime || null,
+        stillUrl: poster(episode.still_path, "w300"),
+        overview: episode.overview || null,
+        watched: false,
+      }],
+    }],
   });
 }
 
@@ -161,6 +213,7 @@ function mapTmdbDetail(item, kind, extra = {}) {
     })),
     ratings,
     trailerUrl: trailer?.key ? `https://www.youtube.com/watch?v=${trailer.key}` : null,
+    releaseType: kind === "movie" ? "movie" : "season",
     ...(kind === "movie"
       ? { runtimeMinutes: item.runtime || null, releaseDate: item.release_date || null }
       : {
@@ -208,6 +261,7 @@ function mapAniListMedia(item) {
     ratings: [{ source: "AniList", value: item.averageScore || null, scale: 100, votes: item.popularity || null }],
     providers: [],
     trailerUrl: item.trailer?.site === "youtube" && item.trailer?.id ? `https://www.youtube.com/watch?v=${item.trailer.id}` : null,
+    releaseType: "season",
     format: item.format === "MOVIE" ? "Movie" : item.format || "TV",
     episodeCount: item.episodes || null,
     durationMinutes: item.duration || null,
@@ -224,6 +278,38 @@ function mapAniListMedia(item) {
     ],
     studio: item.studios?.nodes?.[0]?.name || null,
     source: "anilist",
+  });
+}
+
+function mapAnimeEpisodeRelease(item) {
+  const media = mapAniListMedia(item);
+  if (!media) return null;
+  const nextEpisode = item.nextAiringEpisode;
+  if (!nextEpisode?.airingAt) return null;
+  const airDate = new Date(nextEpisode.airingAt * 1000).toISOString().slice(0, 10);
+  return cacheMedia({
+    ...media,
+    id: `anilist:${item.id}:episode:${nextEpisode.episode}`,
+    releaseType: "anime_episode",
+    parentTitle: media.title,
+    seasonNumber: 1,
+    episodeNumber: nextEpisode.episode,
+    episodeTitle: `Episode ${nextEpisode.episode}`,
+    seasons: [{
+      ...media.seasons[0],
+      airDate,
+      episodes: [{
+        id: `anilist:${item.id}:episode:${nextEpisode.episode}`,
+        seasonNumber: 1,
+        episodeNumber: nextEpisode.episode,
+        title: `Episode ${nextEpisode.episode}`,
+        airDate,
+        runtimeMinutes: media.durationMinutes || null,
+        stillUrl: media.posterUrl,
+        overview: media.overview,
+        watched: false,
+      }],
+    }],
   });
 }
 
@@ -276,7 +362,8 @@ async function omdbRatings(imdbId) {
   }
 }
 
-async function anilistSearch(search, page = 1, perPage = 12) {
+async function anilistSearch(search, page = 1, perPage = 12, includeNextAiring = false) {
+  const nextAiringFields = includeNextAiring ? "nextAiringEpisode { airingAt episode timeUntilAiring }" : "";
   const query = `
     query ($search: String, $page: Int, $perPage: Int) {
       Page(page: $page, perPage: $perPage) {
@@ -297,6 +384,7 @@ async function anilistSearch(search, page = 1, perPage = 12) {
           bannerImage
           trailer { id site }
           studios(isMain: true) { nodes { name } }
+          ${nextAiringFields}
         }
       }
     }
@@ -307,6 +395,56 @@ async function anilistSearch(search, page = 1, perPage = 12) {
   });
 
   return (response.data?.data?.Page?.media || []).map(mapAniListMedia).filter(Boolean);
+}
+
+async function anilistAiringAnime(page = 1, perPage = 12) {
+  const query = `
+    query ($page: Int, $perPage: Int) {
+      Page(page: $page, perPage: $perPage) {
+        media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC) {
+          id
+          title { romaji english native }
+          description
+          format
+          episodes
+          duration
+          averageScore
+          popularity
+          genres
+          season
+          seasonYear
+          startDate { year month day }
+          coverImage { large extraLarge }
+          bannerImage
+          trailer { id site }
+          nextAiringEpisode { airingAt episode timeUntilAiring }
+          studios(isMain: true) { nodes { name } }
+        }
+      }
+    }
+  `;
+  const response = await axios.post(config.anilistBaseUrl, { query, variables: { page, perPage } }, {
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    timeout: 15000,
+  });
+  return (response.data?.data?.Page?.media || []).map(mapAnimeEpisodeRelease).filter(Boolean);
+}
+
+async function tmdbTvEpisodeReleases() {
+  const shows = await tmdbGet("tv/on_the_air").then((data) => (data.results || []).slice(0, 8));
+  const episodeGroups = await Promise.allSettled(shows.map(async (show) => {
+    const detail = await tmdbGet(`tv/${show.id}`);
+    const seasonNumber = detail.last_episode_to_air?.season_number || detail.next_episode_to_air?.season_number || 1;
+    const season = await tmdbGet(`tv/${show.id}/season/${seasonNumber}`);
+    return (season.episodes || [])
+      .filter((episode) => episode.air_date)
+      .map((episode) => mapTmdbEpisodeRelease({ ...show, ...detail }, episode, seasonNumber));
+  }));
+
+  return episodeGroups
+    .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+    .filter(Boolean)
+    .slice(0, 24);
 }
 
 async function resolveMediaById(id) {
@@ -661,17 +799,23 @@ app.get("/api/media/:id/season/:seasonNumber", asyncRoute(async (req, res) => {
 }));
 
 app.get("/api/upcoming", asyncRoute(async (req, res) => {
-  const [movies, tv, anime] = await Promise.allSettled([
-    tmdbGet("movie/upcoming", { region: req.query.region || "US" }).then((data) => (data.results || []).slice(0, 8).map((item) => mapTmdbSummary(item, "movie"))),
-    tmdbGet("tv/on_the_air").then((data) => (data.results || []).slice(0, 8).map((item) => mapTmdbSummary(item, "tv"))),
-    anilistSearch(undefined, 1, 8),
+  const region = req.query.region || "US";
+  const [movies, tvEpisodes, animeEpisodes] = await Promise.allSettled([
+    tmdbGet("movie/upcoming", { region }).then((data) => (data.results || []).slice(0, 10).map((item) => ({ ...mapTmdbSummary(item, "movie"), releaseType: "movie" }))),
+    tmdbTvEpisodeReleases(),
+    anilistAiringAnime(1, 12),
   ]);
 
-  const results = [movies, tv, anime]
+  const results = [movies, tvEpisodes, animeEpisodes]
     .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
     .filter(Boolean)
     .map((item) => ({ ...item, status: "Upcoming" }))
-    .slice(0, 20);
+    .sort((a, b) => {
+      const aDate = a.kind === "movie" ? a.releaseDate : a.seasons?.[0]?.episodes?.[0]?.airDate || a.firstAirDate || a.seasons?.[0]?.airDate || "";
+      const bDate = b.kind === "movie" ? b.releaseDate : b.seasons?.[0]?.episodes?.[0]?.airDate || b.firstAirDate || b.seasons?.[0]?.airDate || "";
+      return String(aDate).localeCompare(String(bDate));
+    })
+    .slice(0, 40);
 
   res.json(results);
 }));
