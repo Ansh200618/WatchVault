@@ -5,6 +5,7 @@ export const API_BASE_URL = (configuredApiBaseUrl || 'https://watchvault-backend
 
 const pathFor = (path: string) => `${API_BASE_URL}${path}`;
 const seg = (value: string) => encodeURIComponent(value);
+const DEVICE_STORAGE_KEY = 'watchvault:device-id';
 type WatchedEpisodeMap = Record<string, boolean>;
 type LibraryMutation = Partial<{
   status: LibraryStatus;
@@ -16,12 +17,33 @@ type LibraryMutation = Partial<{
   media: MediaItem | null;
 }>;
 
+function createLocalId(prefix: string) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return `${prefix}_${crypto.randomUUID()}`;
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function cleanClientId(value: unknown) {
+  return typeof value === 'string' ? value.trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 80) : '';
+}
+
 function getUserId() {
   try {
     const prefs = JSON.parse(window.localStorage.getItem('watchvault:prefs') || '{}');
-    return typeof prefs.userId === 'string' && prefs.userId ? prefs.userId : 'anonymous';
+    return cleanClientId(prefs.userId) || 'anonymous';
   } catch {
     return 'anonymous';
+  }
+}
+
+export function getWatchVaultDeviceId() {
+  try {
+    const existing = cleanClientId(window.localStorage.getItem(DEVICE_STORAGE_KEY));
+    if (existing) return existing;
+    const created = createLocalId('dev');
+    window.localStorage.setItem(DEVICE_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return 'dev_unknown';
   }
 }
 
@@ -29,6 +51,7 @@ function userHeaders(extra: Record<string, string> = {}) {
   return {
     ...extra,
     'X-WatchVault-User': getUserId(),
+    'X-WatchVault-Device': getWatchVaultDeviceId(),
   };
 }
 
@@ -100,6 +123,32 @@ export const apiService = {
   deleteLibraryItem: async (mediaId: string) => {
     const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE', headers: userHeaders() });
     if (!response.ok) throw new Error('Failed to remove library item');
+    return response.json();
+  },
+
+  exportUserData: async () => {
+    const response = await fetch(pathFor('/user/export'), { headers: userHeaders() });
+    if (!response.ok) throw new Error('Failed to export progress');
+    return response.json();
+  },
+
+  importUserData: async (backup: unknown) => {
+    const response = await fetch(pathFor('/user/import'), {
+      method: 'POST',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(backup),
+    });
+    if (!response.ok) throw new Error('Failed to import progress');
+    return response.json();
+  },
+
+  recoverUserData: async (userId: string) => {
+    const response = await fetch(pathFor('/user/recover'), {
+      method: 'POST',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ userId }),
+    });
+    if (!response.ok) throw new Error('Failed to recover progress');
     return response.json();
   },
 
