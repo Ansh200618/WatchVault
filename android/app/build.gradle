@@ -5,6 +5,10 @@ def releaseKeystorePassword = project.findProperty("WATCHVAULT_KEYSTORE_PASSWORD
 def releaseKeyAlias = project.findProperty("WATCHVAULT_KEY_ALIAS") ?: System.getenv("WATCHVAULT_KEY_ALIAS")
 def releaseKeyPassword = project.findProperty("WATCHVAULT_KEY_PASSWORD") ?: System.getenv("WATCHVAULT_KEY_PASSWORD")
 def hasReleaseSigning = releaseKeystorePath && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword && file(releaseKeystorePath).exists()
+def requestedReleaseTask = gradle.startParameter.taskNames.any { taskName ->
+    def normalized = taskName.toLowerCase()
+    normalized.contains("release") || normalized.contains("bundlerelease") || normalized.contains("assemblerelease")
+}
 
 android {
     namespace = "com.watchvault.app"
@@ -34,15 +38,21 @@ android {
     }
     buildTypes {
         release {
-            if (!hasReleaseSigning) {
-                throw new GradleException("Release signing is not configured. Add WATCHVAULT_KEYSTORE_PATH, WATCHVAULT_KEYSTORE_PASSWORD, WATCHVAULT_KEY_ALIAS, and WATCHVAULT_KEY_PASSWORD.")
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
             }
-            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
             debuggable false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def willRunRelease = requestedReleaseTask || taskGraph.allTasks.any { task -> task.name.toLowerCase().contains("release") }
+    if (willRunRelease && !hasReleaseSigning) {
+        throw new GradleException("Release signing is not configured. Add WATCHVAULT_KEYSTORE_PATH, WATCHVAULT_KEYSTORE_PASSWORD, WATCHVAULT_KEY_ALIAS, and WATCHVAULT_KEY_PASSWORD.")
     }
 }
 
