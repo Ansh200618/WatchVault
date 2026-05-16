@@ -1,6 +1,8 @@
-import { ArrowLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, CheckCircle2, Bell } from "lucide-react";
 import { useState } from "react";
 import { useLiveData } from "../../../services/liveData";
+import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
+import { usePrefs } from "../prefs";
 
 export function SettingsScreen({
   onBack,
@@ -11,31 +13,51 @@ export function SettingsScreen({
   theme: "light" | "dark" | "amoled";
   setTheme: (t: "light" | "dark" | "amoled") => void;
 }) {
-  const { apiStatus } = useLiveData();
+  const { apiStatus, refresh } = useLiveData();
+  const { prefs, update } = usePrefs();
   const [message, setMessage] = useState<string | null>(null);
-  const groups: { title: string; items: { label: string; value?: string }[] }[] = [
+
+  const showMessage = (text: string) => {
+    setMessage(text);
+    window.setTimeout(() => setMessage(null), 3500);
+  };
+
+  const toggleReminders = async () => {
+    if (prefs.remindersEnabled) {
+      update({ remindersEnabled: false });
+      showMessage("Release reminders are turned off. You can turn them on anytime here.");
+      return;
+    }
+
+    const result = await requestReminderPermission();
+    update({ remindersEnabled: result.enabled });
+    showMessage(result.message);
+  };
+
+  const groups: { title: string; items: { label: string; value?: string; onClick: () => void }[] }[] = [
     {
       title: "Preferences",
       items: [
-        { label: "Notification reminders", value: "On" },
-        { label: "Default region", value: "India" },
-        { label: "Preferred languages", value: "EN, JP" },
+        { label: "Notification reminders", value: reminderPermissionLabel(prefs.remindersEnabled), onClick: toggleReminders },
+        { label: "Default region", value: prefs.regionName, onClick: () => showMessage(`Region: ${prefs.regionName}`) },
+        { label: "Preferred languages", value: prefs.languages.join(", "), onClick: () => showMessage(`Languages: ${prefs.languages.join(", ")}`) },
       ],
     },
     {
       title: "Data",
       items: [
-        { label: "Backup data" },
-        { label: "Import data" },
-        { label: "Clear local data" },
-        { label: "API status", value: "Connected" },
+        { label: "Refresh live data", value: "Now", onClick: () => refresh().then(() => showMessage("Latest backend data loaded.")) },
+        { label: "Backup data", value: "Soon", onClick: () => showMessage("Backup export will be available in the advanced settings page.") },
+        { label: "Import data", value: "Soon", onClick: () => showMessage("Import will be available in the advanced settings page.") },
+        { label: "API status", value: `${apiStatus.length} services`, onClick: () => showMessage("API status is shown below.") },
       ],
     },
     {
       title: "About",
-      items: [{ label: "About WatchVault", value: "v1.0.0" }],
+      items: [{ label: "About WatchVault", value: "v1.0.0", onClick: () => showMessage("WatchVault tracks legal metadata and watch progress. It does not stream content.") }],
     },
   ];
+
   return (
     <div className="h-full overflow-y-auto pb-28 ">
       <div className="px-5 pt-12 flex items-center gap-3">
@@ -65,6 +87,23 @@ export function SettingsScreen({
         </div>
       </div>
 
+      <div className="px-5 mt-5">
+        <div
+          className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center gap-3"
+          style={{ borderRadius: 24 }}
+        >
+          <div className="w-11 h-11 rounded-full bg-[#D9A441]/15 flex items-center justify-center">
+            <Bell size={17} className="text-[#D9A441]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[#111] dark:text-white" style={{ fontSize: 14, fontWeight: 700 }}>Reminder permissions</div>
+            <div className="text-[#666666] dark:text-[#B8B8B8]" style={{ fontSize: 11, lineHeight: 1.5 }}>
+              You can change reminders anytime from Settings. Enabling asks for device/browser notification permission.
+            </div>
+          </div>
+        </div>
+      </div>
+
       {groups.map((g) => (
         <div key={g.title} className="px-5 mt-5">
           <div className="text-[#666666] mb-2 px-1" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -77,19 +116,19 @@ export function SettingsScreen({
             {g.items.map((it, i) => (
               <button
                 key={it.label}
-                onClick={() => setMessage(`${it.label}: ${it.value || "Ready"}`)}
+                onClick={it.onClick}
                 className={`w-full flex items-center justify-between px-4 py-3.5 ${i > 0 ? "border-t border-[#E5E5E5] dark:border-[#2A2A2A]" : ""}`}
               >
                 <span className="text-[#111] dark:text-white" style={{ fontSize: 13 }}>
                   {it.label}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   {it.value && (
-                    <span className="text-[#666666]" style={{ fontSize: 12 }}>
+                    <span className="text-[#666666] truncate max-w-[150px]" style={{ fontSize: 12 }}>
                       {it.value}
                     </span>
                   )}
-                  <ChevronRight size={14} className="text-[#666666]" />
+                  <ChevronRight size={14} className="text-[#666666] flex-shrink-0" />
                 </div>
               </button>
             ))}
