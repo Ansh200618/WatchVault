@@ -196,6 +196,7 @@ export function StatusChip({ status }: { status?: string }) {
     Watching: "bg-[#D9A441]/15 text-[#7A5A1F] dark:text-[#D9A441]",
     Completed: "bg-black/10 text-black dark:bg-white/15 dark:text-white",
     Plan: "bg-[#D9A441]/20 text-[#7A5A1F] dark:text-[#D9A441]",
+    Favorite: "bg-[#F3C76A]/30 text-[#7A5A1F] dark:text-[#F3C76A]",
     Dropped: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
     "On Hold": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
     Upcoming: "bg-[#D9A441]/20 text-[#7A5A1F] dark:text-[#D9A441]",
