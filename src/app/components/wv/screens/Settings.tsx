@@ -34,7 +34,7 @@ export function SettingsScreen({
 
   const showMessage = (text: string) => {
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 3500);
+    window.setTimeout(() => setMessage(null), 4200);
   };
 
   const toggleReminders = async () => {
@@ -78,6 +78,53 @@ export function SettingsScreen({
       showMessage("User ID copied. Use it on another device to recover the same progress.");
     } catch {
       window.prompt("Copy this WatchVault User ID", prefs.userId);
+    }
+  };
+
+  const setAccountUsername = async () => {
+    try {
+      const current = await apiService.getUserProfile();
+      const username = window.prompt("Choose a unique WatchVault username", current.username || prefs.name || "");
+      if (!username) return;
+      const result = await apiService.updateUserProfile(username);
+      showMessage(`Username saved: @${result.username}`);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not save username.");
+    }
+  };
+
+  const checkLinkedDevices = async () => {
+    try {
+      const result = await apiService.getUserDevices();
+      const lines = [
+        `${result.linkedDevices || 0}/${result.maxDevices || 5} devices linked`,
+        ...(result.devices || []).map((device: any, index: number) => `${index + 1}. ${device.current ? "This device" : "Device"} ${device.id || "Unknown"}`),
+      ];
+      window.alert(lines.join("\n"));
+      showMessage(`${result.linkedDevices || 0}/${result.maxDevices || 5} devices linked to this account.`);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not check linked devices.");
+    }
+  };
+
+  const deleteAccount = async () => {
+    const first = window.confirm("Delete your WatchVault account? This removes your User ID, progress, devices, and username from the backend.");
+    if (!first) return;
+    const typed = window.prompt("Type DELETE to permanently delete this account");
+    if (typed !== "DELETE") {
+      showMessage("Account deletion cancelled.");
+      return;
+    }
+
+    try {
+      await apiService.deleteUserAccount();
+      reset();
+      window.localStorage.removeItem("watchvault:prefs");
+      window.localStorage.removeItem("watchvault:device-id");
+      showMessage("Account deleted. Restarting with a new local profile...");
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not delete account.");
     }
   };
 
@@ -131,7 +178,7 @@ export function SettingsScreen({
       showMessage(`Recovered ${result.itemCount || 0} saved items. This device is now using that account.`);
     } catch (error) {
       const text = error instanceof Error ? error.message : "Could not recover account.";
-      showMessage(text.includes("Device limit") ? "This account is already linked to 5 devices." : "Could not recover account right now.");
+      showMessage(text.includes("Device limit") ? "This account is already linked to 5 devices." : text);
     }
   };
 
@@ -199,15 +246,18 @@ export function SettingsScreen({
           </SettingsGroup>
 
           <SettingsGroup title="Account & progress">
+            <Row label="Account username" value="Set" onClick={() => void setAccountUsername()} />
+            <Row label="Check linked devices" value="Max 5" onClick={() => void checkLinkedDevices()} />
             <Row label="WatchVault User ID" value="Copy" onClick={() => void copyUserId()} />
             <Row label="Recover on this device" value="User ID" onClick={() => void recoverAccount()} />
             <Row label="Export progress backup" value="JSON" onClick={() => void exportProgress()} />
             <Row label="Import progress backup" value="JSON" onClick={() => void importProgress()} />
+            <Row label="Delete account" value="Permanent" onClick={() => void deleteAccount()} danger />
           </SettingsGroup>
 
           <Section title="Device limit">
             <div className="p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ fontSize: 12, lineHeight: 1.55 }}>
-              Use the same WatchVault User ID on up to 5 devices. Copy your User ID before uninstalling if you want to keep progress.
+              Use the same WatchVault User ID on up to 5 devices. Usernames must be unique. Deleting an account removes the backend progress, linked devices, username, and User ID data.
             </div>
           </Section>
 
@@ -228,7 +278,7 @@ export function SettingsScreen({
             className="w-full p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white"
             placeholder="Enter your name"
           />
-          <p className="mt-3 text-[#666666]" style={{ fontSize: 12 }}>This name is used across Home and Profile.</p>
+          <p className="mt-3 text-[#666666]" style={{ fontSize: 12 }}>This name is used across Home and Profile. Account username is separate and must be unique.</p>
         </Section>
       )}
 
