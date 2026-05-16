@@ -2,6 +2,10 @@ name: Build WatchVault APK
 
 on:
   push:
+    branches:
+      - main
+      - fix/full-app-functionality-audit
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -18,6 +22,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm --prefix backend test -- --runInBand
       - run: npm run build
       - run: npx cap sync android
       - uses: actions/setup-java@v4
