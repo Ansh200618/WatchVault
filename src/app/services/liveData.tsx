@@ -18,8 +18,16 @@ import {
   type Insight,
 } from "./fallbackData";
 
+type MediaBuckets = {
+  all: Media[];
+  movies: Media[];
+  series: Media[];
+  anime: Media[];
+};
+
 type LiveDataState = {
   media: Media[];
+  mediaBuckets: MediaBuckets;
   upcoming: Media[];
   insights: Insight[];
   apiStatus: ApiStatusItem[];
@@ -28,6 +36,13 @@ type LiveDataState = {
   error: string | null;
   refresh: () => Promise<void>;
   searchMedia: (query: string, kind?: "movie" | "tv" | "anime") => Promise<Media[]>;
+};
+
+const fallbackBuckets: MediaBuckets = {
+  all: fallbackMedia,
+  movies: fallbackMedia.filter((item) => item.type === "Movie"),
+  series: fallbackMedia.filter((item) => item.type === "Series"),
+  anime: fallbackMedia.filter((item) => item.type === "Anime"),
 };
 
 const LiveDataContext = createContext<LiveDataState | null>(null);
@@ -81,8 +96,19 @@ async function readJson<T>(path: string): Promise<T> {
   return response.json();
 }
 
+function buildBuckets(items: Media[]): MediaBuckets {
+  const all = uniqueById(items);
+  return {
+    all,
+    movies: all.filter((item) => item.type === "Movie"),
+    series: all.filter((item) => item.type === "Series"),
+    anime: all.filter((item) => item.type === "Anime"),
+  };
+}
+
 export function LiveDataProvider({ children }: { children: React.ReactNode }) {
   const [media, setMedia] = useState<Media[]>(fallbackMedia);
+  const [mediaBuckets, setMediaBuckets] = useState<MediaBuckets>(fallbackBuckets);
   const [upcoming, setUpcoming] = useState<Media[]>(fallbackUpcoming);
   const [insights, setInsights] = useState<Insight[]>(fallbackInsights);
   const [apiStatus, setApiStatus] = useState<ApiStatusItem[]>(fallbackApiStatus);
@@ -95,8 +121,10 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const [popularResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
-        apiService.getPopularMedia(),
+      const [moviesResult, seriesResult, animeResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
+        apiService.getPopularMedia("movie"),
+        apiService.getPopularMedia("tv"),
+        apiService.getPopularMedia("anime"),
         apiService.getUserLibrary(),
         readJson<MediaItem[]>("/upcoming"),
         readJson<{ apis: Record<string, string> }>("/status"),
@@ -104,7 +132,10 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
         readJson<Insight[]>("/brain/insights"),
       ]);
 
-      const popular = popularResult.status === "fulfilled" ? popularResult.value.map(mediaItemToMedia) : [];
+      const movies = moviesResult.status === "fulfilled" ? moviesResult.value.map(mediaItemToMedia) : [];
+      const series = seriesResult.status === "fulfilled" ? seriesResult.value.map(mediaItemToMedia) : [];
+      const anime = animeResult.status === "fulfilled" ? animeResult.value.map(mediaItemToMedia) : [];
+      const popular = uniqueById([...movies, ...series, ...anime]);
       const library = libraryResult.status === "fulfilled" ? libraryResult.value : [];
       const libraryMedia = library.map(mediaFromLibraryItem).filter((item): item is Media => Boolean(item));
       const upcomingMedia =
@@ -112,15 +143,18 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
           ? upcomingResult.value.map((item) => ({ ...mediaItemToMedia(item), status: "Upcoming" as const }))
           : [];
       const merged = uniqueById(withLibrary([...libraryMedia, ...popular, ...upcomingMedia], library));
+      const buckets = buildBuckets(merged.length ? merged : fallbackMedia);
 
       setUpcoming(upcomingMedia.length ? upcomingMedia : fallbackUpcoming);
-      setMedia(merged.length ? merged : fallbackMedia);
+      setMedia(buckets.all);
+      setMediaBuckets(buckets);
       setApiStatus(statusResult.status === "fulfilled" ? apiStatusToCards(statusResult.value.apis || {}) : fallbackApiStatus);
       setStats(statsResult.status === "fulfilled" ? statsResult.value : fallbackStats);
       setInsights(insightsResult.status === "fulfilled" && insightsResult.value.length ? insightsResult.value : fallbackInsights);
     } catch {
       setError(null);
       setMedia(fallbackMedia);
+      setMediaBuckets(fallbackBuckets);
       setUpcoming(fallbackUpcoming);
       setInsights(fallbackInsights);
       setApiStatus(fallbackApiStatus);
@@ -159,8 +193,8 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
   }, [media]);
 
   const value = useMemo(
-    () => ({ media, upcoming, insights, apiStatus, stats, loading, error, refresh, searchMedia }),
-    [apiStatus, error, insights, loading, media, refresh, searchMedia, stats, upcoming]
+    () => ({ media, mediaBuckets, upcoming, insights, apiStatus, stats, loading, error, refresh, searchMedia }),
+    [apiStatus, error, insights, loading, media, mediaBuckets, refresh, searchMedia, stats, upcoming]
   );
 
   return <LiveDataContext.Provider value={value}>{children}</LiveDataContext.Provider>;
