@@ -12,6 +12,7 @@ import android.view.WindowInsetsController;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
@@ -30,6 +31,32 @@ public class MainActivity extends BridgeActivity {
         );
         configureSystemBars();
         configureWebPermissions();
+        configureBackNavigation();
+    }
+
+    private void configureBackNavigation() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (getBridge() == null || getBridge().getWebView() == null) {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                    return;
+                }
+
+                getBridge().getWebView().evaluateJavascript(
+                        "window.__watchvaultShouldExit=false;" +
+                                "window.dispatchEvent(new CustomEvent('watchvault:native-back'));" +
+                                "window.__watchvaultShouldExit===true;",
+                        shouldExit -> {
+                            if ("true".equals(shouldExit)) {
+                                setEnabled(false);
+                                getOnBackPressedDispatcher().onBackPressed();
+                            }
+                        }
+                );
+            }
+        });
     }
 
     private void configureWebPermissions() {
