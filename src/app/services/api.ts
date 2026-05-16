@@ -1,9 +1,7 @@
 import { MediaItem, MediaKind, LibraryStatus, type Media, type ApiStatusItem, type UserLibraryItem, type WatchStatsItem } from '../data';
 
-// Use VITE_API_BASE_URL when configured; otherwise use local dev/proxy API paths.
-// Do not default to a shared public backend because library endpoints are mutable.
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-export const API_BASE_URL = (configuredApiBaseUrl || '/api').replace(/\/$/, '');
+export const API_BASE_URL = (configuredApiBaseUrl || 'https://watchvault-backend-2lrv.onrender.com/api').replace(/\/$/, '');
 
 const pathFor = (path: string) => `${API_BASE_URL}${path}`;
 const seg = (value: string) => encodeURIComponent(value);
