@@ -1,7 +1,9 @@
 import { MediaItem, MediaKind, LibraryStatus, type Media, type ApiStatusItem, type UserLibraryItem, type WatchStatsItem } from '../data';
 
-// Public backend used by production APK builds. VITE_API_BASE_URL can still override this.
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://watchvault-backend-2lrv.onrender.com/api').replace(/\/$/, '');
+// Use VITE_API_BASE_URL when configured; otherwise use local dev/proxy API paths.
+// Do not default to a shared public backend because library endpoints are mutable.
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+export const API_BASE_URL = (configuredApiBaseUrl || '/api').replace(/\/$/, '');
 
 const pathFor = (path: string) => `${API_BASE_URL}${path}`;
 const seg = (value: string) => encodeURIComponent(value);
