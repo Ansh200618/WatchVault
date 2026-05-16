@@ -16,6 +16,22 @@ type LibraryMutation = Partial<{
   media: MediaItem | null;
 }>;
 
+function getUserId() {
+  try {
+    const prefs = JSON.parse(window.localStorage.getItem('watchvault:prefs') || '{}');
+    return typeof prefs.userId === 'string' && prefs.userId ? prefs.userId : 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
+}
+
+function userHeaders(extra: Record<string, string> = {}) {
+  return {
+    ...extra,
+    'X-WatchVault-User': getUserId(),
+  };
+}
+
 /**
  * API Service for communicating with WatchVault backend
  */
@@ -50,13 +66,13 @@ export const apiService = {
   },
 
   getUserLibrary: async (): Promise<UserLibraryItem[]> => {
-    const response = await fetch(pathFor('/user/library'));
+    const response = await fetch(pathFor('/user/library'), { headers: userHeaders() });
     if (!response.ok) throw new Error('Failed to fetch user library');
     return response.json();
   },
 
   getStats: async (): Promise<WatchStatsItem> => {
-    const response = await fetch(pathFor('/user/stats'));
+    const response = await fetch(pathFor('/user/stats'), { headers: userHeaders() });
     if (!response.ok) throw new Error('Failed to fetch watch stats');
     return response.json();
   },
@@ -64,7 +80,7 @@ export const apiService = {
   updateLibraryItem: async (mediaId: string, updates: LibraryMutation) => {
     const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates)
     });
     if (!response.ok) throw new Error('Failed to update library item');
@@ -74,7 +90,7 @@ export const apiService = {
   addLibraryItem: async (item: { mediaId: string } & LibraryMutation) => {
     const response = await fetch(pathFor('/user/library'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(item)
     });
     if (!response.ok) throw new Error('Failed to add library item');
@@ -82,7 +98,7 @@ export const apiService = {
   },
 
   deleteLibraryItem: async (mediaId: string) => {
-    const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE' });
+    const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE', headers: userHeaders() });
     if (!response.ok) throw new Error('Failed to remove library item');
     return response.json();
   },
