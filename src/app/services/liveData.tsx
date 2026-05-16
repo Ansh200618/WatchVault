@@ -7,7 +7,7 @@ import type {
   UserLibraryItem,
   WatchStatsItem,
 } from "../data";
-import { apiService, apiStatusToCards, mediaItemToMedia } from "./api";
+import { API_BASE_URL, apiService, apiStatusToCards, mediaItemToMedia } from "./api";
 import {
   fallbackApiStatus,
   fallbackInsights,
@@ -39,7 +39,7 @@ function statusLabel(status: LibraryStatus | undefined): Media["status"] {
     completed: "Completed",
     dropped: "Dropped",
     on_hold: "On Hold",
-    favorite: "Completed",
+    favorite: "Favorite",
   };
   return status ? map[status] : undefined;
 }
@@ -65,12 +65,19 @@ function uniqueById(items: Media[]) {
 }
 
 function mediaFromLibraryItem(item: UserLibraryItem): Media | null {
-  return item.media ? mediaItemToMedia(item.media as MediaItem) : null;
+  if (!item.media) return null;
+  return {
+    ...mediaItemToMedia(item.media as MediaItem),
+    status: statusLabel(item.status),
+    progress: item.progressPercent,
+    lastEpisode: item.lastEpisode ? `S${item.lastEpisode.season} E${item.lastEpisode.episode}` : undefined,
+  };
 }
 
 async function readJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`Failed to fetch ${path}`);
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${API_BASE_URL}${cleanPath}`, { cache: "no-store", headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`Failed to fetch ${cleanPath}`);
   return response.json();
 }
 
@@ -91,10 +98,10 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
       const [popularResult, libraryResult, upcomingResult, statusResult, statsResult, insightsResult] = await Promise.allSettled([
         apiService.getPopularMedia(),
         apiService.getUserLibrary(),
-        readJson<MediaItem[]>("/api/upcoming"),
-        readJson<{ apis: Record<string, string> }>("/api/status"),
+        readJson<MediaItem[]>("/upcoming"),
+        readJson<{ apis: Record<string, string> }>("/status"),
         apiService.getStats(),
-        readJson<Insight[]>("/api/brain/insights"),
+        readJson<Insight[]>("/brain/insights"),
       ]);
 
       const popular = popularResult.status === "fulfilled" ? popularResult.value.map(mediaItemToMedia) : [];
@@ -125,6 +132,19 @@ export function LiveDataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void refresh();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onOnline = () => void refresh();
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
   }, [refresh]);
 
   const searchMedia = useCallback(async (query: string, kind?: "movie" | "tv" | "anime") => {
