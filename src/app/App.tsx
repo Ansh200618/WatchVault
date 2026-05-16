@@ -38,7 +38,6 @@ function mergeProgressFields(fresh: Media, current: Media | null): Media {
     watchedEpisodes: (current as any).watchedEpisodes ?? (fresh as any).watchedEpisodes,
   } as Media;
 }
-
 export default function App() {
   return (
     <PrefsProvider>
