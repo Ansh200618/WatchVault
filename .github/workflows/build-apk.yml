@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/full-app-functionality-audit
+      - fix/tracker-layout-instant-progress
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -21,38 +22,61 @@ jobs:
       APP_VERSION_NAME: 1.0.${{ github.run_number }}
       VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
       VITE_APP_VERSION: 1.0.${{ github.run_number }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
+
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
       - uses: android-actions/setup-android@v3
+
       - run: chmod +x android/gradlew
+
       - name: Build APK
         run: cd android && ./gradlew assembleDebug --stacktrace --no-daemon -PAPP_VERSION_CODE=${APP_VERSION_CODE} -PAPP_VERSION_NAME=${APP_VERSION_NAME}
-      - name: Prepare APK
+
+      - name: Prepare APK files
         run: |
           mkdir -p release
           cp android/app/build/outputs/apk/debug/app-debug.apk release/WatchVault-${APP_VERSION_NAME}.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/WatchVault-latest.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: WatchVault-${{ env.APP_VERSION_NAME }}
           path: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
-      - name: Publish APK to GitHub Releases
+
+      - name: Publish versioned APK release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION_NAME }}
+          name: WatchVault ${{ env.APP_VERSION_NAME }}
+          body: WatchVault APK. Version ${{ env.APP_VERSION_NAME }}. Built from commit ${{ github.sha }}.
+          files: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
+          make_latest: false
+          overwrite_files: true
+
+      - name: Publish clean latest APK release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
           name: WatchVault ${{ env.APP_VERSION_NAME }}
           body: Latest WatchVault APK. Version ${{ env.APP_VERSION_NAME }}. Built from commit ${{ github.sha }}.
-          files: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
+          files: release/WatchVault-latest.apk
           make_latest: true
+          overwrite_files: true
