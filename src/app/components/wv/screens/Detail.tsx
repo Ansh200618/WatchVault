@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Bell, Check, Heart, Play, Plus } from "lucide-react";
 import { ImageWithFallback } from "../../figma/ImageWithFallback";
 import type { Media, MediaItem, WatchProviderItem } from "../../../data";
@@ -116,6 +116,13 @@ export function Detail({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [favorite, setFavorite] = useState(m.status === "Favorite");
+  const progress = Math.max(0, Math.min(100, m.progress ?? 0));
+
+  useEffect(() => {
+    setFavorite(m.status === "Favorite");
+  }, [m.id, m.status]);
+
   const liveRatings = m.ratings?.map((rating) => ({
     label:
       rating.source === "RottenTomatoes"
@@ -136,20 +143,43 @@ export function Detail({
           { label: "Meta", value: null, suffix: "" },
           { label: "User", value: null },
         ];
+
   const saveStatus = async (status: "watching" | "plan" | "completed" | "favorite") => {
     setSaving(true);
     try {
       await apiService.addLibraryItem({
         mediaId: m.id,
         status,
-        progressPercent: status === "completed" ? 100 : status === "watching" ? (m.progress ?? 0) : 0,
+        progressPercent: status === "completed" ? 100 : status === "watching" ? progress : 0,
         media: mediaSnapshot(m),
       });
+      setFavorite(status === "favorite");
       setLibraryOpen(false);
       setMessage(status === "plan" ? "Added to pending list" : status === "completed" ? "Marked as watched" : status === "favorite" ? "Added to favorites" : "Saved to library");
       await refresh();
     } catch {
-      setMessage("Could not save right now. Check backend/API status in Settings.");
+      setMessage("Could not save right now. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (favorite || m.status === "Favorite") {
+        await apiService.deleteLibraryItem(m.id);
+        setFavorite(false);
+        setMessage("Removed from favorites");
+      } else {
+        await apiService.addLibraryItem({ mediaId: m.id, status: "favorite", progressPercent: progress, media: mediaSnapshot(m) });
+        setFavorite(true);
+        setMessage("Added to favorites");
+      }
+      await refresh();
+    } catch {
+      setMessage("Could not update favorite. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -170,14 +200,14 @@ export function Detail({
       setMessage("Reminder saved in your pending list");
       await refresh();
     } catch {
-      setMessage("Could not save reminder right now. Check backend/API status in Settings.");
+      setMessage("Could not save reminder right now. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="h-full overflow-y-auto pb-28">
+    <div className="h-full overflow-y-auto pb-32">
       <div className="relative" style={{ height: 340 }}>
         <ImageWithFallback src={m.banner || m.poster} alt={m.title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" />
@@ -185,7 +215,9 @@ export function Detail({
           <FloatingCircle onClick={onBack}><ArrowLeft size={18} /></FloatingCircle>
         </div>
         <div className="absolute top-12 right-5">
-          <FloatingCircle onClick={() => !saving && void saveStatus("favorite")}><Heart size={18} /></FloatingCircle>
+          <FloatingCircle onClick={() => void toggleFavorite()}>
+            <Heart size={18} fill={favorite ? "currentColor" : "none"} className={favorite ? "text-[#D9A441]" : ""} />
+          </FloatingCircle>
         </div>
       </div>
 
@@ -197,7 +229,7 @@ export function Detail({
           <span className="px-2.5 py-1 rounded-full bg-[#111] text-white dark:bg-white dark:text-black" style={{ fontSize: 10, fontWeight: 700 }}>
             {m.type}
           </span>
-          <StatusChip status={m.status} />
+          <StatusChip status={favorite ? "Favorite" : m.status} />
         </div>
         <div className="mt-3 text-white" style={{ fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
           {m.title}
@@ -257,20 +289,22 @@ export function Detail({
         )}
 
         {m.type !== "Movie" && (
-          <GlassPanel className="mt-4 w-full p-4 flex items-center justify-between" onClick={onOpenTracker}>
-            <div className="text-left">
-              <div className="text-white" style={{ fontSize: 13, fontWeight: 600 }}>
-                {m.progress ?? 0}% - {m.lastEpisode || "Not started"}
+          <GlassPanel className="mt-4 w-full p-4" onClick={onOpenTracker}>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 text-left">
+                <div className="text-white" style={{ fontSize: 13, fontWeight: 700 }}>
+                  {progress}% watched
+                </div>
+                <div className="text-white/60" style={{ fontSize: 11 }}>
+                  {m.lastEpisode || "Open episode tracker"}
+                </div>
+                <div className="mt-3 h-2 bg-white/15 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#D9A441]" style={{ width: `${progress}%`, boxShadow: "0 0 12px rgba(217,164,65,0.7)" }} />
+                </div>
               </div>
-              <div className="text-white/60" style={{ fontSize: 11 }}>
-                Open Episode Tracker
+              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <Play size={15} className="text-black ml-0.5" fill="currentColor" />
               </div>
-              <div className="mt-2 w-48 h-1.5 bg-white/15 rounded-full overflow-hidden">
-                <div className="h-full bg-[#D9A441]" style={{ width: `${m.progress ?? 0}%`, boxShadow: "0 0 12px rgba(217,164,65,0.7)" }} />
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
-              <Play size={14} className="text-black ml-0.5" fill="currentColor" />
             </div>
           </GlassPanel>
         )}
