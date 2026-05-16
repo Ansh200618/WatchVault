@@ -14,36 +14,40 @@ const TABS: { id: Tab; label: string; Icon: any }[] = [
 export function BottomNav({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   const { color } = useArtwork();
   return (
-    <div className="absolute left-5 right-5 z-20" style={{ bottom: "calc(env(safe-area-inset-bottom) + 14px)" }}>
+    <div
+      className="absolute left-4 right-4 z-20 pointer-events-none"
+      style={{ bottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+    >
       <div
+        className="pointer-events-auto"
         style={{
-          borderRadius: 32,
-          height: 72,
-          background: "rgba(10,10,14,0.72)",
+          borderRadius: 30,
+          height: 70,
+          background: "rgba(8,8,12,0.86)",
           backdropFilter: "blur(28px) saturate(180%)",
           WebkitBackdropFilter: "blur(28px) saturate(180%)",
-          border: "1px solid rgba(255,255,255,0.14)",
-          boxShadow: "0 18px 40px -10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "0 18px 40px -10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.14)",
         }}
       >
-        <div className="flex items-center justify-around h-full px-2">
+        <div className="grid grid-cols-5 h-full px-2">
           {TABS.map(({ id, label, Icon }) => {
             const isActive = active === id;
             return (
               <button
                 key={id}
                 onClick={() => onChange(id)}
-                className="flex flex-col items-center justify-center gap-0.5 px-3 transition rounded-3xl"
+                className="min-w-0 flex flex-col items-center justify-center gap-0.5 transition rounded-3xl"
                 style={{
-                  height: 56,
-                  minWidth: 58,
-                  background: isActive ? `linear-gradient(180deg, ${rgbToCss(color, 0.35)} 0%, ${rgbToCss(color, 0.12)} 100%)` : "transparent",
-                  border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid transparent",
-                  boxShadow: isActive ? `0 8px 18px -6px ${rgbToCss(color, 0.55)}` : "none",
+                  height: 58,
+                  alignSelf: "center",
+                  background: isActive ? `linear-gradient(180deg, ${rgbToCss(color, 0.32)} 0%, ${rgbToCss(color, 0.11)} 100%)` : "transparent",
+                  border: isActive ? "1px solid rgba(255,255,255,0.16)" : "1px solid transparent",
+                  boxShadow: isActive ? `0 8px 18px -6px ${rgbToCss(color, 0.5)}` : "none",
                 }}
                 aria-label={label}
               >
-                <div className="relative">
+                <div className="relative flex items-center justify-center">
                   <Icon
                     size={isActive ? 22 : 20}
                     className={isActive ? "text-white" : "text-white/55"}
@@ -57,8 +61,8 @@ export function BottomNav({ active, onChange }: { active: Tab; onChange: (t: Tab
                   )}
                 </div>
                 <span
-                  className={isActive ? "text-white" : "text-white/55"}
-                  style={{ fontSize: 10.5, fontWeight: isActive ? 600 : 500, marginTop: 6 }}
+                  className={`block max-w-full truncate ${isActive ? "text-white" : "text-white/55"}`}
+                  style={{ fontSize: 10.5, fontWeight: isActive ? 650 : 500, marginTop: 6 }}
                 >
                   {label}
                 </span>

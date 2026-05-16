@@ -5,6 +5,8 @@ import { FilterChips, SearchBar, PosterCard } from "../shared";
 import { EmptyState, ErrorState, ShimmerGrid } from "../states";
 import { useLiveData } from "../../../services/liveData";
 
+const FILTERS = ["All", "Movies", "Series", "Anime", "Upcoming"];
+
 export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
   const [filter, setFilter] = useState("All");
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -48,39 +50,36 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
   }, [filter, query, searchMedia]);
 
   return (
-    <div className="h-full overflow-y-auto pb-44">
-      <div className="px-5 pt-14">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-[#111] dark:text-white" style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>
-            Discover
-          </div>
-          <div className="flex gap-1 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] p-1 rounded-full">
-            <button
-              onClick={() => setView("grid")}
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${view === "grid" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
-              aria-label="Grid view"
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${view === "list" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
-              aria-label="List view"
-            >
-              <List size={14} />
-            </button>
-          </div>
+    <div className="h-full overflow-y-auto px-5 pt-12" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 132px)" }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-[#111] dark:text-white" style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>
+          Discover
         </div>
-        <SearchBar value={query} onChange={setQuery} />
+        <div className="flex gap-1 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] p-1 rounded-full flex-shrink-0">
+          <button
+            onClick={() => setView("grid")}
+            className={`w-9 h-9 rounded-full flex items-center justify-center ${view === "grid" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
+            aria-label="Grid view"
+          >
+            <LayoutGrid size={15} />
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={`w-9 h-9 rounded-full flex items-center justify-center ${view === "list" ? "bg-[#111] text-white dark:bg-white dark:text-black" : "text-[#666666]"}`}
+            aria-label="List view"
+          >
+            <List size={15} />
+          </button>
+        </div>
       </div>
+
+      <SearchBar value={query} onChange={setQuery} />
+
       <div className="mt-4">
-        <FilterChips
-          options={["All", "Movies", "Series", "Anime", "Upcoming"]}
-          value={filter}
-          onChange={setFilter}
-        />
+        <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
       </div>
-      <div className="px-5 mt-5">
+
+      <div className="mt-5">
         {loading && media.length === 0 ? (
           <ShimmerGrid />
         ) : error || searchError ? (
@@ -88,7 +87,7 @@ export function Discover({ onOpen }: { onOpen: (m: Media) => void }) {
         ) : view === "grid" ? (
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 pb-6">
             {filtered.map((m) => (
-              <PosterCard key={m.id} m={m} onClick={() => onOpen(m)} w={156} />
+              <PosterCard key={m.id} m={m} onClick={() => onOpen(m)} fluid />
             ))}
           </div>
         ) : (
