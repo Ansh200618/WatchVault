@@ -16,8 +16,9 @@ export const apiService = {
     return response.json();
   },
 
-  getPopularMedia: async (): Promise<MediaItem[]> => {
-    const response = await fetch(pathFor('/media/popular'));
+  getPopularMedia: async (kind?: MediaKind): Promise<MediaItem[]> => {
+    const params = kind ? `?${new URLSearchParams({ kind }).toString()}` : '';
+    const response = await fetch(pathFor(`/media/popular${params}`));
     if (!response.ok) throw new Error('Failed to fetch popular media');
     return response.json();
   },
