@@ -21,7 +21,7 @@ type Ctx = {
 };
 
 const DEFAULT: UserPrefs = {
-  name: "User",
+  name: "",
   regionCode: "IN",
   regionName: "India",
   languages: ["English", "Hindi"],
@@ -37,8 +37,8 @@ const STORAGE_KEY = "watchvault:prefs";
 
 function cleanName(value: unknown): string {
   const name = typeof value === "string" ? value.trim() : "";
-  const badNames = ["watcher", "ansb", "ansh", "undefined", "null"];
-  if (!name || badNames.includes(name.toLowerCase())) return DEFAULT.name;
+  const blockedPlaceholders = ["watcher", "user", "undefined", "null"];
+  if (!name || blockedPlaceholders.includes(name.toLowerCase())) return "";
   return name;
 }
 
