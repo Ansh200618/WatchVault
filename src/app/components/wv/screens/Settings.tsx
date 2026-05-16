@@ -1,6 +1,7 @@
 import { ArrowLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useLiveData } from "../../../services/liveData";
+import { apiService } from "../../../services/api";
 import { CURRENT_APP_VERSION, checkForAppUpdate, openUpdateUrl, type AppUpdateInfo } from "../../../services/appUpdate";
 import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
 import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
@@ -33,7 +34,7 @@ export function SettingsScreen({
 
   const showMessage = (text: string) => {
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 3000);
+    window.setTimeout(() => setMessage(null), 3500);
   };
 
   const toggleReminders = async () => {
@@ -69,6 +70,69 @@ export function SettingsScreen({
     }
 
     openUpdateUrl(url);
+  };
+
+  const copyUserId = async () => {
+    try {
+      await navigator.clipboard.writeText(prefs.userId);
+      showMessage("User ID copied. Use it on another device to recover the same progress.");
+    } catch {
+      window.prompt("Copy this WatchVault User ID", prefs.userId);
+    }
+  };
+
+  const exportProgress = async () => {
+    try {
+      const backup = await apiService.exportUserData();
+      const text = JSON.stringify(backup, null, 2);
+      try {
+        await navigator.clipboard.writeText(text);
+        showMessage("Progress backup copied. Save it somewhere safe before uninstalling.");
+      } catch {
+        const blob = new Blob([text], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `watchvault-backup-${Date.now()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showMessage("Progress backup downloaded.");
+      }
+    } catch {
+      showMessage("Could not export progress right now.");
+    }
+  };
+
+  const importProgress = async () => {
+    const raw = window.prompt("Paste your WatchVault backup JSON here");
+    if (!raw) return;
+    try {
+      const backup = JSON.parse(raw);
+      const result = await apiService.importUserData(backup);
+      await refresh();
+      showMessage(`Imported ${result.imported || 0} progress items.`);
+    } catch {
+      showMessage("Could not import backup. Make sure the JSON is correct.");
+    }
+  };
+
+  const recoverAccount = async () => {
+    const userId = window.prompt("Paste your WatchVault User ID from the other device", prefs.userId);
+    if (!userId) return;
+    const cleaned = userId.trim();
+    try {
+      const result = await apiService.recoverUserData(cleaned);
+      if (!result.found) {
+        showMessage("No saved progress found for that User ID.");
+        return;
+      }
+      update({ userId: result.userId });
+      await refresh();
+      showMessage(`Recovered ${result.itemCount || 0} saved items. This device is now using that account.`);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Could not recover account.";
+      showMessage(text.includes("Device limit") ? "This account is already linked to 5 devices." : "Could not recover account right now.");
+    }
   };
 
   const clearSavedPreferences = () => {
@@ -133,6 +197,19 @@ export function SettingsScreen({
             <Row label="Content types" value={contentSummary} onClick={() => setPage("content")} />
             <SwitchRow label="Release reminders" value={reminderPermissionLabel(prefs.remindersEnabled)} active={prefs.remindersEnabled} onClick={() => void toggleReminders()} />
           </SettingsGroup>
+
+          <SettingsGroup title="Account & progress">
+            <Row label="WatchVault User ID" value="Copy" onClick={() => void copyUserId()} />
+            <Row label="Recover on this device" value="User ID" onClick={() => void recoverAccount()} />
+            <Row label="Export progress backup" value="JSON" onClick={() => void exportProgress()} />
+            <Row label="Import progress backup" value="JSON" onClick={() => void importProgress()} />
+          </SettingsGroup>
+
+          <Section title="Device limit">
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ fontSize: 12, lineHeight: 1.55 }}>
+              Use the same WatchVault User ID on up to 5 devices. Copy your User ID before uninstalling if you want to keep progress.
+            </div>
+          </Section>
 
           <SettingsGroup title="App">
             <Row label="App update" value={latestVersion} onClick={() => setPage("updates")} />
