@@ -22,6 +22,12 @@ import { apiService, mediaItemToMedia } from "./services/api";
 type Stage = "splash" | "onboarding" | "main";
 type Overlay = "detail" | "tracker" | "brain" | "settings" | "upcoming" | null;
 
+declare global {
+  interface Window {
+    __watchvaultShouldExit?: boolean;
+  }
+}
+
 export default function App() {
   return (
     <PrefsProvider>
@@ -71,6 +77,61 @@ function AppInner() {
     if (prefs.onboarded && stage !== "main") setStage("main");
   }, [prefs.onboarded, stage]);
 
+  const navigateBackInsideApp = (keepInsideApp?: () => void) => {
+    window.__watchvaultShouldExit = false;
+
+    if (allowExitRef.current) {
+      window.__watchvaultShouldExit = true;
+      return;
+    }
+
+    if (stageRef.current !== "main") {
+      keepInsideApp?.();
+      return;
+    }
+
+    if (overlayRef.current === "tracker") {
+      setOverlay("detail");
+      setExitMessage(false);
+      keepInsideApp?.();
+      return;
+    }
+
+    if (overlayRef.current) {
+      setOverlay(null);
+      setExitMessage(false);
+      keepInsideApp?.();
+      return;
+    }
+
+    const previousTab = tabHistoryRef.current.pop();
+    if (previousTab) {
+      setTab(previousTab);
+      setExitMessage(false);
+      keepInsideApp?.();
+      return;
+    }
+
+    if (tabRef.current !== "home") {
+      setTab("home");
+      setExitMessage(false);
+      keepInsideApp?.();
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastBackPressRef.current < 2000) {
+      allowExitRef.current = true;
+      window.__watchvaultShouldExit = true;
+      return;
+    }
+
+    lastBackPressRef.current = now;
+    setExitMessage(true);
+    window.setTimeout(() => setExitMessage(false), 2000);
+    keepInsideApp?.();
+  };
+
   useEffect(() => {
     window.history.replaceState({ watchVault: true }, document.title);
     window.history.pushState({ watchVault: true }, document.title);
@@ -79,58 +140,23 @@ function AppInner() {
       window.history.pushState({ watchVault: true }, document.title);
     };
 
-    const handleBack = () => {
-      if (allowExitRef.current) return;
-
-      if (stageRef.current !== "main") {
-        keepInsideApp();
-        return;
-      }
-
-      if (overlayRef.current === "tracker") {
-        setOverlay("detail");
-        setExitMessage(false);
-        keepInsideApp();
-        return;
-      }
-
-      if (overlayRef.current) {
-        setOverlay(null);
-        setExitMessage(false);
-        keepInsideApp();
-        return;
-      }
-
-      const previousTab = tabHistoryRef.current.pop();
-      if (previousTab) {
-        setTab(previousTab);
-        setExitMessage(false);
-        keepInsideApp();
-        return;
-      }
-
-      if (tabRef.current !== "home") {
-        setTab("home");
-        setExitMessage(false);
-        keepInsideApp();
-        return;
-      }
-
-      const now = Date.now();
-      if (now - lastBackPressRef.current < 2000) {
-        allowExitRef.current = true;
+    const handleBrowserBack = () => {
+      navigateBackInsideApp(keepInsideApp);
+      if (window.__watchvaultShouldExit) {
         window.history.back();
-        return;
       }
-
-      lastBackPressRef.current = now;
-      setExitMessage(true);
-      window.setTimeout(() => setExitMessage(false), 2000);
-      keepInsideApp();
     };
 
-    window.addEventListener("popstate", handleBack);
-    return () => window.removeEventListener("popstate", handleBack);
+    const handleNativeBack = () => {
+      navigateBackInsideApp();
+    };
+
+    window.addEventListener("popstate", handleBrowserBack);
+    window.addEventListener("watchvault:native-back", handleNativeBack);
+    return () => {
+      window.removeEventListener("popstate", handleBrowserBack);
+      window.removeEventListener("watchvault:native-back", handleNativeBack);
+    };
   }, []);
 
   const navigateTab = (nextTab: Tab) => {
