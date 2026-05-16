@@ -5,6 +5,16 @@ export const API_BASE_URL = (configuredApiBaseUrl || 'https://watchvault-backend
 
 const pathFor = (path: string) => `${API_BASE_URL}${path}`;
 const seg = (value: string) => encodeURIComponent(value);
+type WatchedEpisodeMap = Record<string, boolean>;
+type LibraryMutation = Partial<{
+  status: LibraryStatus;
+  progressPercent: number;
+  lastEpisode: { season: number; episode: number } | null;
+  watchedEpisodes: WatchedEpisodeMap;
+  rating: number | null;
+  notes: string | null;
+  media: MediaItem | null;
+}>;
 
 /**
  * API Service for communicating with WatchVault backend
@@ -51,7 +61,7 @@ export const apiService = {
     return response.json();
   },
 
-  updateLibraryItem: async (mediaId: string, updates: Partial<{ status: LibraryStatus; progressPercent: number; lastEpisode: { season: number; episode: number } | null; rating: number | null; notes: string | null; media: MediaItem | null }>) => {
+  updateLibraryItem: async (mediaId: string, updates: LibraryMutation) => {
     const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -61,7 +71,7 @@ export const apiService = {
     return response.json();
   },
 
-  addLibraryItem: async (item: { mediaId: string; status?: LibraryStatus; progressPercent?: number; lastEpisode?: { season: number; episode: number } | null; rating?: number | null; notes?: string | null; media?: MediaItem | null }) => {
+  addLibraryItem: async (item: { mediaId: string } & LibraryMutation) => {
     const response = await fetch(pathFor('/user/library'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
