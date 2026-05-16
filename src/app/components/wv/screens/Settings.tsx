@@ -1,31 +1,24 @@
 import { ArrowLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useLiveData } from "../../../services/liveData";
+import { apiService } from "../../../services/api";
 import { CURRENT_APP_VERSION, checkForAppUpdate, openUpdateUrl, type AppUpdateInfo } from "../../../services/appUpdate";
 import { reminderPermissionLabel, requestReminderPermission } from "../../../services/notifications";
+import { clearProfileImage, pickProfileImageFile, setProfileImage, useProfileImage } from "../../../services/profileImage";
 import { CONTENT_TYPES, LANGUAGES, REGIONS, usePrefs } from "../prefs";
 
 type SettingsPage = "main" | "profile" | "region" | "languages" | "content" | "updates" | "about";
 
 declare global {
   interface Window {
-    WatchVaultAndroid?: {
-      startUpdate?: (url: string) => void;
-    };
+    WatchVaultAndroid?: { startUpdate?: (url: string) => void };
   }
 }
 
-export function SettingsScreen({
-  onBack,
-  theme,
-  setTheme,
-}: {
-  onBack: () => void;
-  theme: "light" | "dark" | "amoled";
-  setTheme: (t: "light" | "dark" | "amoled") => void;
-}) {
+export function SettingsScreen({ onBack, theme, setTheme }: { onBack: () => void; theme: "light" | "dark" | "amoled"; setTheme: (t: "light" | "dark" | "amoled") => void }) {
   const { refresh } = useLiveData();
   const { prefs, update, reset } = usePrefs();
+  const profileImage = useProfileImage();
   const [page, setPage] = useState<SettingsPage>("main");
   const [message, setMessage] = useState<string | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -33,7 +26,7 @@ export function SettingsScreen({
 
   const showMessage = (text: string) => {
     setMessage(text);
-    window.setTimeout(() => setMessage(null), 3000);
+    window.setTimeout(() => setMessage(null), 4200);
   };
 
   const toggleReminders = async () => {
@@ -42,7 +35,6 @@ export function SettingsScreen({
       showMessage("Release reminders are turned off. You can turn them on anytime here.");
       return;
     }
-
     const result = await requestReminderPermission();
     update({ remindersEnabled: result.enabled });
     showMessage(result.message);
@@ -67,8 +59,139 @@ export function SettingsScreen({
       showMessage("Downloading update inside WatchVault...");
       return;
     }
-
     openUpdateUrl(url);
+  };
+
+  const copyUserId = async () => {
+    try {
+      await navigator.clipboard.writeText(prefs.userId);
+      showMessage("User ID copied. Use it on another device to recover the same progress.");
+    } catch {
+      window.prompt("Copy this WatchVault User ID", prefs.userId);
+    }
+  };
+
+  const updateProfileImage = async () => {
+    const choice = window.prompt("Profile image options:\n1 = Choose from device\n2 = Use image URL\n3 = Remove image", profileImage ? "1" : "1");
+    if (!choice) return;
+    if (choice.trim() === "3") {
+      clearProfileImage();
+      showMessage("Profile image removed.");
+      return;
+    }
+    if (choice.trim() === "2") {
+      const url = window.prompt("Paste a direct image URL");
+      if (!url) return;
+      setProfileImage(url.trim());
+      showMessage("Profile image URL saved on this device.");
+      return;
+    }
+    const image = await pickProfileImageFile();
+    if (!image) {
+      showMessage("Could not add profile image.");
+      return;
+    }
+    setProfileImage(image);
+    showMessage("Profile image compressed to WebP and saved on this device.");
+  };
+
+  const setAccountUsername = async () => {
+    try {
+      const current = await apiService.getUserProfile();
+      const username = window.prompt("Choose a unique WatchVault username", current.username || prefs.name || "");
+      if (!username) return;
+      const result = await apiService.updateUserProfile(username);
+      showMessage(`Username saved: @${result.username}`);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not save username.");
+    }
+  };
+
+  const checkLinkedDevices = async () => {
+    try {
+      const result = await apiService.getUserDevices();
+      const lines = [
+        `${result.linkedDevices || 0}/${result.maxDevices || 5} devices linked`,
+        ...(result.devices || []).map((device: any, index: number) => `${index + 1}. ${device.current ? "This device" : "Device"} ${device.id || "Unknown"}`),
+      ];
+      window.alert(lines.join("\n"));
+      showMessage(`${result.linkedDevices || 0}/${result.maxDevices || 5} devices linked to this account.`);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not check linked devices.");
+    }
+  };
+
+  const deleteAccount = async () => {
+    const first = window.confirm("Delete your WatchVault account? This removes your User ID, progress, devices, and username from the backend.");
+    if (!first) return;
+    const typed = window.prompt("Type DELETE to permanently delete this account");
+    if (typed !== "DELETE") {
+      showMessage("Account deletion cancelled.");
+      return;
+    }
+    try {
+      await apiService.deleteUserAccount();
+      reset();
+      window.localStorage.removeItem("watchvault:prefs");
+      window.localStorage.removeItem("watchvault:device-id");
+      clearProfileImage();
+      showMessage("Account deleted. Restarting with a new local profile...");
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Could not delete account.");
+    }
+  };
+
+  const exportProgress = async () => {
+    try {
+      const backup = await apiService.exportUserData();
+      const text = JSON.stringify(backup, null, 2);
+      try {
+        await navigator.clipboard.writeText(text);
+        showMessage("Progress backup copied. Save it somewhere safe before uninstalling.");
+      } catch {
+        const blob = new Blob([text], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `watchvault-backup-${Date.now()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showMessage("Progress backup downloaded.");
+      }
+    } catch {
+      showMessage("Could not export progress right now.");
+    }
+  };
+
+  const importProgress = async () => {
+    const raw = window.prompt("Paste your WatchVault backup JSON here");
+    if (!raw) return;
+    try {
+      const result = await apiService.importUserData(JSON.parse(raw));
+      await refresh();
+      showMessage(`Imported ${result.imported || 0} progress items.`);
+    } catch {
+      showMessage("Could not import backup. Make sure the JSON is correct.");
+    }
+  };
+
+  const recoverAccount = async () => {
+    const userId = window.prompt("Paste your WatchVault User ID from the other device", prefs.userId);
+    if (!userId) return;
+    try {
+      const result = await apiService.recoverUserData(userId.trim());
+      if (!result.found) {
+        showMessage("No saved progress found for that User ID.");
+        return;
+      }
+      update({ userId: result.userId });
+      await refresh();
+      showMessage(`Recovered ${result.itemCount || 0} saved items. This device is now using that account.`);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Could not recover account.";
+      showMessage(text.includes("Device limit") ? "This account is already linked to 5 devices." : text);
+    }
   };
 
   const clearSavedPreferences = () => {
@@ -80,16 +203,7 @@ export function SettingsScreen({
     window.setTimeout(() => window.location.reload(), 700);
   };
 
-  const titleMap: Record<SettingsPage, string> = {
-    main: "Settings",
-    profile: "Profile",
-    region: "Region",
-    languages: "Languages",
-    content: "Content",
-    updates: "App Update",
-    about: "About",
-  };
-
+  const titleMap: Record<SettingsPage, string> = { main: "Settings", profile: "Profile", region: "Region", languages: "Languages", content: "Content", updates: "App Update", about: "About" };
   const languageSummary = prefs.languages.length ? prefs.languages.join(", ") : "None selected";
   const contentSummary = prefs.contentTypes.length ? prefs.contentTypes.join(", ") : "None selected";
   const latestVersion = updateInfo?.latestVersion || "Check now";
@@ -97,16 +211,10 @@ export function SettingsScreen({
   return (
     <div className="h-full overflow-y-auto pb-28">
       <div className="px-5 pt-12 flex items-center gap-3">
-        <button
-          onClick={() => (page === "main" ? onBack() : setPage("main"))}
-          className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center"
-          aria-label="Go back"
-        >
+        <button onClick={() => (page === "main" ? onBack() : setPage("main"))} className="w-10 h-10 rounded-full bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center" aria-label="Go back">
           <ArrowLeft size={16} className="text-[#111] dark:text-white" />
         </button>
-        <div className="text-[#111] dark:text-white" style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>
-          {titleMap[page]}
-        </div>
+        <div className="text-[#111] dark:text-white" style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>{titleMap[page]}</div>
       </div>
 
       {page === "main" && (
@@ -114,25 +222,35 @@ export function SettingsScreen({
           <Section title="Theme">
             <div className="grid grid-cols-3 gap-2">
               {(["light", "dark", "amoled"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTheme(t)}
-                  className={`p-3 capitalize ${theme === t ? "bg-[#111] text-white dark:bg-white dark:text-black" : "bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white"}`}
-                  style={{ borderRadius: 20, fontSize: 12, fontWeight: 600 }}
-                >
-                  {t}
-                </button>
+                <button key={t} onClick={() => setTheme(t)} className={`p-3 capitalize ${theme === t ? "bg-[#111] text-white dark:bg-white dark:text-black" : "bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white"}`} style={{ borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{t}</button>
               ))}
             </div>
           </Section>
 
           <SettingsGroup title="Preferences">
             <Row label="Profile name" value={prefs.name || "Not set"} onClick={() => setPage("profile")} />
+            <Row label="Profile image" value={profileImage ? "Change" : "Add"} onClick={() => void updateProfileImage()} />
             <Row label="Default region" value={prefs.regionName} onClick={() => setPage("region")} />
             <Row label="Preferred languages" value={languageSummary} onClick={() => setPage("languages")} />
             <Row label="Content types" value={contentSummary} onClick={() => setPage("content")} />
             <SwitchRow label="Release reminders" value={reminderPermissionLabel(prefs.remindersEnabled)} active={prefs.remindersEnabled} onClick={() => void toggleReminders()} />
           </SettingsGroup>
+
+          <SettingsGroup title="Account & progress">
+            <Row label="Account username" value="Set" onClick={() => void setAccountUsername()} />
+            <Row label="Check linked devices" value="Max 5" onClick={() => void checkLinkedDevices()} />
+            <Row label="WatchVault User ID" value="Copy" onClick={() => void copyUserId()} />
+            <Row label="Recover on this device" value="User ID" onClick={() => void recoverAccount()} />
+            <Row label="Export progress backup" value="JSON" onClick={() => void exportProgress()} />
+            <Row label="Import progress backup" value="JSON" onClick={() => void importProgress()} />
+            <Row label="Delete account" value="Permanent" onClick={() => void deleteAccount()} danger />
+          </SettingsGroup>
+
+          <Section title="Device limit">
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ fontSize: 12, lineHeight: 1.55 }}>
+              Use the same WatchVault User ID on up to 5 devices. Profile images are compressed to WebP and saved only on this device. Usernames must be unique.
+            </div>
+          </Section>
 
           <SettingsGroup title="App">
             <Row label="App update" value={latestVersion} onClick={() => setPage("updates")} />
@@ -145,66 +263,14 @@ export function SettingsScreen({
 
       {page === "profile" && (
         <Section title="Profile name">
-          <input
-            value={prefs.name}
-            onChange={(e) => update({ name: e.target.value })}
-            className="w-full p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white"
-            placeholder="Enter your name"
-          />
-          <p className="mt-3 text-[#666666]" style={{ fontSize: 12 }}>This name is used across Home and Profile.</p>
+          <input value={prefs.name} onChange={(e) => update({ name: e.target.value })} className="w-full p-4 rounded-3xl bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white" placeholder="Enter your name" />
+          <p className="mt-3 text-[#666666]" style={{ fontSize: 12 }}>This name is used across Home and Profile. Account username is separate and must be unique.</p>
         </Section>
       )}
 
-      {page === "region" && (
-        <SettingsGroup title="Select region">
-          {REGIONS.map((region) => {
-            const active = prefs.regionCode === region.code;
-            return (
-              <SwitchRow
-                key={region.code}
-                label={region.name}
-                value={active ? "On" : "Off"}
-                active={active}
-                onClick={() => update({ regionCode: region.code, regionName: region.name })}
-              />
-            );
-          })}
-        </SettingsGroup>
-      )}
-
-      {page === "languages" && (
-        <SettingsGroup title="Preferred languages">
-          {LANGUAGES.map((language) => {
-            const active = prefs.languages.includes(language);
-            return (
-              <SwitchRow
-                key={language}
-                label={language}
-                value={active ? "On" : "Off"}
-                active={active}
-                onClick={() => update({ languages: active ? prefs.languages.filter((l) => l !== language) : [...prefs.languages, language] })}
-              />
-            );
-          })}
-        </SettingsGroup>
-      )}
-
-      {page === "content" && (
-        <SettingsGroup title="Content types">
-          {CONTENT_TYPES.map((type) => {
-            const active = prefs.contentTypes.includes(type);
-            return (
-              <SwitchRow
-                key={type}
-                label={type}
-                value={active ? "On" : "Off"}
-                active={active}
-                onClick={() => update({ contentTypes: active ? prefs.contentTypes.filter((t) => t !== type) : [...prefs.contentTypes, type] })}
-              />
-            );
-          })}
-        </SettingsGroup>
-      )}
+      {page === "region" && <SettingsGroup title="Select region">{REGIONS.map((region) => <SwitchRow key={region.code} label={region.name} value={prefs.regionCode === region.code ? "On" : "Off"} active={prefs.regionCode === region.code} onClick={() => update({ regionCode: region.code, regionName: region.name })} />)}</SettingsGroup>}
+      {page === "languages" && <SettingsGroup title="Preferred languages">{LANGUAGES.map((language) => { const active = prefs.languages.includes(language); return <SwitchRow key={language} label={language} value={active ? "On" : "Off"} active={active} onClick={() => update({ languages: active ? prefs.languages.filter((l) => l !== language) : [...prefs.languages, language] })} />; })}</SettingsGroup>}
+      {page === "content" && <SettingsGroup title="Content types">{CONTENT_TYPES.map((type) => { const active = prefs.contentTypes.includes(type); return <SwitchRow key={type} label={type} value={active ? "On" : "Off"} active={active} onClick={() => update({ contentTypes: active ? prefs.contentTypes.filter((t) => t !== type) : [...prefs.contentTypes, type] })} />; })}</SettingsGroup>}
 
       {page === "updates" && (
         <Section title="Update status">
@@ -215,97 +281,33 @@ export function SettingsScreen({
                 <div className="text-[#666666] mt-1" style={{ fontSize: 12 }}>Current version: v{CURRENT_APP_VERSION}</div>
                 <div className="text-[#666666]" style={{ fontSize: 12 }}>Latest version: {updateInfo?.latestVersion ? `v${updateInfo.latestVersion}` : "Not checked"}</div>
               </div>
-              <div className={`px-3 py-1.5 rounded-full ${updateInfo?.updateAvailable ? "bg-[#D9A441]/20 text-[#D9A441]" : "bg-white/10 text-[#666666]"}`} style={{ fontSize: 11, fontWeight: 800 }}>
-                {updateInfo?.updateAvailable ? "Update ready" : "Up to date"}
-              </div>
+              <div className={`px-3 py-1.5 rounded-full ${updateInfo?.updateAvailable ? "bg-[#D9A441]/20 text-[#D9A441]" : "bg-white/10 text-[#666666]"}`} style={{ fontSize: 11, fontWeight: 800 }}>{updateInfo?.updateAvailable ? "Update ready" : "Up to date"}</div>
             </div>
-
-            {updateInfo?.notes && (
-              <div className="mt-4 p-3 rounded-2xl bg-[#F6F6F6] dark:bg-[#1A1A1A] text-[#666666] whitespace-pre-line" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                {updateInfo.notes.slice(0, 500)}
-              </div>
-            )}
-
-            <button
-              onClick={() => void checkUpdates()}
-              disabled={checkingUpdate}
-              className="mt-4 w-full py-3 rounded-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ fontSize: 13, fontWeight: 800 }}
-            >
-              <RefreshCw size={15} /> {checkingUpdate ? "Checking..." : "Check for Update"}
-            </button>
-
-            {updateInfo?.updateAvailable && updateInfo.apkUrl && (
-              <button
-                onClick={() => startAppUpdate(updateInfo.apkUrl!)}
-                className="mt-3 w-full py-3 rounded-full bg-[#D9A441] text-black flex items-center justify-center gap-2"
-                style={{ fontSize: 13, fontWeight: 900 }}
-              >
-                <Download size={15} /> Update Now
-              </button>
-            )}
+            {updateInfo?.notes && <div className="mt-4 p-3 rounded-2xl bg-[#F6F6F6] dark:bg-[#1A1A1A] text-[#666666] whitespace-pre-line" style={{ fontSize: 12, lineHeight: 1.5 }}>{updateInfo.notes.slice(0, 500)}</div>}
+            <button onClick={() => void checkUpdates()} disabled={checkingUpdate} className="mt-4 w-full py-3 rounded-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#111] dark:text-white flex items-center justify-center gap-2 disabled:opacity-60" style={{ fontSize: 13, fontWeight: 800 }}><RefreshCw size={15} /> {checkingUpdate ? "Checking..." : "Check for Update"}</button>
+            {updateInfo?.updateAvailable && updateInfo.apkUrl && <button onClick={() => startAppUpdate(updateInfo.apkUrl!)} className="mt-3 w-full py-3 rounded-full bg-[#D9A441] text-black flex items-center justify-center gap-2" style={{ fontSize: 13, fontWeight: 900 }}><Download size={15} /> Update Now</button>}
           </div>
         </Section>
       )}
 
-      {page === "about" && (
-        <Section title="About WatchVault">
-          <div className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ borderRadius: 20, fontSize: 12, lineHeight: 1.6 }}>
-            WatchVault tracks movies, series, anime, release dates, legal watch options, and watch progress. It does not stream content or provide pirated links.
-          </div>
-        </Section>
-      )}
-
-      {message && (
-        <div className="fixed left-5 right-5 bottom-28 z-50 p-3 rounded-2xl bg-[#D9A441] text-black shadow-xl" style={{ fontSize: 12, fontWeight: 700 }}>
-          {message}
-        </div>
-      )}
+      {page === "about" && <Section title="About WatchVault"><div className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#666666]" style={{ borderRadius: 20, fontSize: 12, lineHeight: 1.6 }}>WatchVault tracks movies, series, anime, release dates, legal watch options, and watch progress. It does not stream content or provide pirated links.</div></Section>}
+      {message && <div className="fixed left-5 right-5 bottom-28 z-50 p-3 rounded-2xl bg-[#D9A441] text-black shadow-xl" style={{ fontSize: 12, fontWeight: 700 }}>{message}</div>}
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="px-5 mt-5">
-      <div className="text-[#666666] mb-2 px-1" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>{title}</div>
-      {children}
-    </div>
-  );
+  return <div className="px-5 mt-5"><div className="text-[#666666] mb-2 px-1" style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>{title}</div>{children}</div>;
 }
 
 function SettingsGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Section title={title}>
-      <div className="bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] overflow-hidden" style={{ borderRadius: 24 }}>
-        {children}
-      </div>
-    </Section>
-  );
+  return <Section title={title}><div className="bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] overflow-hidden" style={{ borderRadius: 24 }}>{children}</div></Section>;
 }
 
 function Row({ label, value, onClick, danger }: { label: string; value?: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button onClick={onClick} className="w-full flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 border-[#E5E5E5] dark:border-[#2A2A2A] text-left">
-      <span className={danger ? "text-red-500" : "text-[#111] dark:text-white"} style={{ fontSize: 13 }}>{label}</span>
-      <div className="flex items-center gap-2 min-w-0">
-        {value && <span className="text-[#666666] truncate max-w-[150px]" style={{ fontSize: 12 }}>{value}</span>}
-        <ChevronRight size={14} className="text-[#666666] flex-shrink-0" />
-      </div>
-    </button>
-  );
+  return <button onClick={onClick} className="w-full flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 border-[#E5E5E5] dark:border-[#2A2A2A] text-left"><span className={danger ? "text-red-500" : "text-[#111] dark:text-white"} style={{ fontSize: 13 }}>{label}</span><div className="flex items-center gap-2 min-w-0">{value && <span className="text-[#666666] truncate max-w-[150px]" style={{ fontSize: 12 }}>{value}</span>}<ChevronRight size={14} className="text-[#666666] flex-shrink-0" /></div></button>;
 }
 
 function SwitchRow({ label, value, active, onClick }: { label: string; value: string; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 border-[#E5E5E5] dark:border-[#2A2A2A] text-left">
-      <span className="text-[#111] dark:text-white" style={{ fontSize: 13 }}>{label}</span>
-      <div className="flex items-center gap-3">
-        <span className="text-[#666666]" style={{ fontSize: 12 }}>{value}</span>
-        <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${active ? "bg-[#D9A441]" : "bg-[#2A2A2A] border border-white/10"}`}>
-          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${active ? "translate-x-6" : "translate-x-1"}`} />
-        </span>
-      </div>
-    </button>
-  );
+  return <button onClick={onClick} className="w-full flex items-center justify-between px-4 py-3.5 border-b last:border-b-0 border-[#E5E5E5] dark:border-[#2A2A2A] text-left"><span className="text-[#111] dark:text-white" style={{ fontSize: 13 }}>{label}</span><div className="flex items-center gap-3"><span className="text-[#666666]" style={{ fontSize: 12 }}>{value}</span><span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${active ? "bg-[#D9A441]" : "bg-[#2A2A2A] border border-white/10"}`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${active ? "translate-x-6" : "translate-x-1"}`} /></span></div></button>;
 }

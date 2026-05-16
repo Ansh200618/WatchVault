@@ -3,10 +3,12 @@ import { Settings, ChevronRight, Sparkles, Trophy, Clock3, Film, Tv, Bookmark, T
 import { BarChart, Bar, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, XAxis } from "recharts";
 import { useLiveData } from "../../../services/liveData";
 import { usePrefs } from "../prefs";
+import { useProfileImage } from "../../../services/profileImage";
 
 export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBrain: () => void }) {
   const { insights, stats } = useLiveData();
   const { prefs } = usePrefs();
+  const profileImage = useProfileImage();
   const [recapOpen, setRecapOpen] = useState(false);
   const displayName = prefs.name?.trim() || "Watcher";
   const initial = displayName.charAt(0).toUpperCase() || "W";
@@ -37,8 +39,8 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
     <div className="h-full overflow-y-auto pb-32">
       <div className="px-5 pt-14 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-16 h-16 rounded-full bg-[#D9A441] flex items-center justify-center text-white shadow-[0_18px_45px_-25px_rgba(217,164,65,0.9)]" style={{ fontSize: 22, fontWeight: 900 }}>
-            {initial}
+          <div className="w-16 h-16 rounded-full bg-[#D9A441] flex items-center justify-center text-white shadow-[0_18px_45px_-25px_rgba(217,164,65,0.9)] overflow-hidden" style={{ fontSize: 22, fontWeight: 900 }}>
+            {profileImage ? <img src={profileImage} alt="Profile" className="w-full h-full object-cover" /> : initial}
           </div>
           <div className="min-w-0">
             <div className="text-[#111] dark:text-white truncate" style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>
@@ -101,10 +103,7 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
       )}
 
       <div className="px-5 mt-5">
-        <div
-          className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]"
-          style={{ borderRadius: 26 }}
-        >
+        <div className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]" style={{ borderRadius: 26 }}>
           <div className="flex items-center justify-between mb-3">
             <div className="text-[#111] dark:text-white" style={{ fontSize: 15, fontWeight: 900 }}>Monthly watch hours</div>
             <div className="text-[#666666]" style={{ fontSize: 11 }}>{safeStats.watchHours}h total</div>
@@ -120,30 +119,21 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="py-10 text-center text-[#666666]" style={{ fontSize: 12 }}>
-              No watch history yet.
-            </div>
+            <div className="py-10 text-center text-[#666666]" style={{ fontSize: 12 }}>No watch history yet.</div>
           )}
         </div>
       </div>
 
       <div className="px-5 mt-3">
-        <div
-          className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]"
-          style={{ borderRadius: 26 }}
-        >
-          <div className="text-[#111] dark:text-white mb-3" style={{ fontSize: 15, fontWeight: 900 }}>
-            Genre distribution
-          </div>
+        <div className="p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A]" style={{ borderRadius: 26 }}>
+          <div className="text-[#111] dark:text-white mb-3" style={{ fontSize: 15, fontWeight: 900 }}>Genre distribution</div>
           {safeStats.genreDistribution.length ? (
             <div className="flex items-center gap-3">
               <div style={{ width: 132, height: 132 }} className="flex-shrink-0">
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie data={safeStats.genreDistribution} dataKey="v" innerRadius={34} outerRadius={58} paddingAngle={2}>
-                      {safeStats.genreDistribution.map((g) => (
-                        <Cell key={g.name} fill={g.c} />
-                      ))}
+                      {safeStats.genreDistribution.map((g) => <Cell key={g.name} fill={g.c} />)}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
@@ -152,61 +142,34 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
                 {safeStats.genreDistribution.slice(0, 6).map((g) => (
                   <div key={g.name} className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: g.c }} />
-                    <div className="text-[#111] dark:text-white flex-1 truncate" style={{ fontSize: 12 }}>
-                      {g.name}
-                    </div>
-                    <div className="text-[#666666]" style={{ fontSize: 11 }}>
-                      {g.v}%
-                    </div>
+                    <div className="text-[#111] dark:text-white flex-1 truncate" style={{ fontSize: 12 }}>{g.name}</div>
+                    <div className="text-[#666666]" style={{ fontSize: 11 }}>{g.v}%</div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="py-10 text-center text-[#666666]" style={{ fontSize: 12 }}>
-              Mark titles watched to build this chart.
-            </div>
+            <div className="py-10 text-center text-[#666666]" style={{ fontSize: 12 }}>Mark titles watched to build this chart.</div>
           )}
         </div>
       </div>
 
       <div className="px-5 mt-3">
-        <div
-          className="p-5 bg-gradient-to-br from-[#111] to-[#D9A441] text-white"
-          style={{ borderRadius: 28 }}
-        >
-          <div className="text-white/70" style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase" }}>
-            Watch Recap
-          </div>
-          <div className="mt-1" style={{ fontSize: 20, fontWeight: 800 }}>
-            {safeStats.watchHours ? `${safeStats.watchHours} hours tracked` : "No completed watch time yet"}
-          </div>
-          <button
-            onClick={() => setRecapOpen(true)}
-            className="mt-4 px-4 py-2 rounded-full bg-white text-black"
-            style={{ fontSize: 12, fontWeight: 800 }}
-          >
-            View Recap
-          </button>
+        <div className="p-5 bg-gradient-to-br from-[#111] to-[#D9A441] text-white" style={{ borderRadius: 28 }}>
+          <div className="text-white/70" style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase" }}>Watch Recap</div>
+          <div className="mt-1" style={{ fontSize: 20, fontWeight: 800 }}>{safeStats.watchHours ? `${safeStats.watchHours} hours tracked` : "No completed watch time yet"}</div>
+          <button onClick={() => setRecapOpen(true)} className="mt-4 px-4 py-2 rounded-full bg-white text-black" style={{ fontSize: 12, fontWeight: 800 }}>View Recap</button>
         </div>
       </div>
 
-      <button
-        onClick={onBrain}
-        className="mx-5 mt-3 w-[calc(100%-2.5rem)] p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between"
-        style={{ borderRadius: 24 }}
-      >
+      <button onClick={onBrain} className="mx-5 mt-3 w-[calc(100%-2.5rem)] p-4 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between" style={{ borderRadius: 24 }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#D9A441]/15 flex items-center justify-center">
             <Sparkles size={16} className="text-[#D9A441]" />
           </div>
           <div className="text-left">
-            <div className="text-[#111] dark:text-white" style={{ fontSize: 13, fontWeight: 800 }}>
-              Watch Brain
-            </div>
-            <div className="text-[#666666]" style={{ fontSize: 11 }}>
-              {insights.length ? `${insights.length} insights ready` : "No insights yet"}
-            </div>
+            <div className="text-[#111] dark:text-white" style={{ fontSize: 13, fontWeight: 800 }}>Watch Brain</div>
+            <div className="text-[#666666]" style={{ fontSize: 11 }}>{insights.length ? `${insights.length} insights ready` : "No insights yet"}</div>
           </div>
         </div>
         <ChevronRight size={16} className="text-[#666666]" />
@@ -225,9 +188,7 @@ export function Profile({ onSettings, onBrain }: { onSettings: () => void; onBra
                 </div>
               ))}
             </div>
-            <button onClick={() => setRecapOpen(false)} className="mt-4 w-full py-3 rounded-full bg-[#111] text-white dark:bg-white dark:text-black" style={{ fontSize: 13, fontWeight: 800 }}>
-              Done
-            </button>
+            <button onClick={() => setRecapOpen(false)} className="mt-4 w-full py-3 rounded-full bg-[#111] text-white dark:bg-white dark:text-black" style={{ fontSize: 13, fontWeight: 800 }}>Done</button>
           </div>
         </div>
       )}

@@ -8,6 +8,7 @@ import { useSetArtwork } from "../artwork";
 import { GlassSearchBar, GlassChip } from "../glass";
 import { usePrefs } from "../prefs";
 import { useLiveData } from "../../../services/liveData";
+import { useProfileImage } from "../../../services/profileImage";
 import { LoadingState, ErrorState } from "../states";
 
 const FILTERS = ["All", "Movies", "Series", "Anime", "Upcoming"] as const;
@@ -48,8 +49,10 @@ export function Home({
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Media[] | null>(null);
   const { prefs } = usePrefs();
+  const profileImage = useProfileImage();
   const { media, mediaBuckets, upcoming, insights, loading, error, refresh, searchMedia } = useLiveData();
 
+  const displayName = prefs.name?.trim() || "Watcher";
   const contentLabel = filter === "All" ? "Trending" : filter;
   const categoryMedia = useMemo(() => bucketForFilter(filter, mediaBuckets, upcoming), [filter, mediaBuckets, upcoming]);
   const visibleMedia = useMemo(() => {
@@ -107,15 +110,15 @@ export function Home({
   return (
     <div className="h-full overflow-y-auto pb-28">
       <div className="px-5 pt-14 flex items-center justify-between">
-        <div>
-          <div className="text-white" style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>
-            Hello, {prefs.name}
+        <div className="min-w-0 pr-3">
+          <div className="text-white truncate" style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>
+            Hello, {displayName}
           </div>
           <div className="text-white/70" style={{ fontSize: 13 }}>
             {contentLabel} in {prefs.regionName} - what are you watching today?
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setNotificationsOpen((open) => !open)}
             className="w-10 h-10 flex items-center justify-center text-white"
@@ -133,11 +136,15 @@ export function Home({
           </button>
           <button
             onClick={() => onNavigate("profile")}
-            className="w-10 h-10 rounded-full bg-[#D9A441] flex items-center justify-center text-black"
+            className="w-10 h-10 rounded-full bg-[#D9A441] flex items-center justify-center text-black overflow-hidden"
             style={{ fontWeight: 700 }}
             aria-label="Open profile"
           >
-            {prefs.name.charAt(0).toUpperCase() || "W"}
+            {profileImage ? (
+              <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              displayName.charAt(0).toUpperCase() || "W"
+            )}
           </button>
         </div>
       </div>
@@ -192,13 +199,13 @@ export function Home({
               </span>
             </div>
             <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-              <div className="text-white">
-                <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>{featured.title}</div>
+              <div className="text-white min-w-0 pr-3">
+                <div className="truncate" style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>{featured.title}</div>
                 <div className="text-white/80 mt-1" style={{ fontSize: 12 }}>
                   {[featured.year || null, featured.lastEpisode || featured.runtime].filter(Boolean).join(" - ") || "Details available"}
                 </div>
               </div>
-              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center flex-shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5">
                   <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

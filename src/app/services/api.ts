@@ -5,6 +5,7 @@ export const API_BASE_URL = (configuredApiBaseUrl || 'https://watchvault-backend
 
 const pathFor = (path: string) => `${API_BASE_URL}${path}`;
 const seg = (value: string) => encodeURIComponent(value);
+const DEVICE_STORAGE_KEY = 'watchvault:device-id';
 type WatchedEpisodeMap = Record<string, boolean>;
 type LibraryMutation = Partial<{
   status: LibraryStatus;
@@ -16,12 +17,33 @@ type LibraryMutation = Partial<{
   media: MediaItem | null;
 }>;
 
+function createLocalId(prefix: string) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return `${prefix}_${crypto.randomUUID()}`;
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function cleanClientId(value: unknown) {
+  return typeof value === 'string' ? value.trim().replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 80) : '';
+}
+
 function getUserId() {
   try {
     const prefs = JSON.parse(window.localStorage.getItem('watchvault:prefs') || '{}');
-    return typeof prefs.userId === 'string' && prefs.userId ? prefs.userId : 'anonymous';
+    return cleanClientId(prefs.userId) || 'anonymous';
   } catch {
     return 'anonymous';
+  }
+}
+
+export function getWatchVaultDeviceId() {
+  try {
+    const existing = cleanClientId(window.localStorage.getItem(DEVICE_STORAGE_KEY));
+    if (existing) return existing;
+    const created = createLocalId('dev');
+    window.localStorage.setItem(DEVICE_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return 'dev_unknown';
   }
 }
 
@@ -29,7 +51,15 @@ function userHeaders(extra: Record<string, string> = {}) {
   return {
     ...extra,
     'X-WatchVault-User': getUserId(),
+    'X-WatchVault-Device': getWatchVaultDeviceId(),
   };
+}
+
+async function jsonOrThrow(response: Response, fallbackMessage: string) {
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : {};
+  if (!response.ok) throw new Error(body?.message || body?.error || fallbackMessage);
+  return body;
 }
 
 /**
@@ -83,8 +113,7 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates)
     });
-    if (!response.ok) throw new Error('Failed to update library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to update library item');
   },
 
   addLibraryItem: async (item: { mediaId: string } & LibraryMutation) => {
@@ -93,14 +122,62 @@ export const apiService = {
       headers: userHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(item)
     });
-    if (!response.ok) throw new Error('Failed to add library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to add library item');
   },
 
   deleteLibraryItem: async (mediaId: string) => {
     const response = await fetch(pathFor(`/user/library/${seg(mediaId)}`), { method: 'DELETE', headers: userHeaders() });
-    if (!response.ok) throw new Error('Failed to remove library item');
-    return response.json();
+    return jsonOrThrow(response, 'Failed to remove library item');
+  },
+
+  exportUserData: async () => {
+    const response = await fetch(pathFor('/user/export'), { headers: userHeaders() });
+    return jsonOrThrow(response, 'Failed to export progress');
+  },
+
+  importUserData: async (backup: unknown) => {
+    const response = await fetch(pathFor('/user/import'), {
+      method: 'POST',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(backup),
+    });
+    return jsonOrThrow(response, 'Failed to import progress');
+  },
+
+  recoverUserData: async (userId: string) => {
+    const response = await fetch(pathFor('/user/recover'), {
+      method: 'POST',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ userId }),
+    });
+    return jsonOrThrow(response, 'Failed to recover progress');
+  },
+
+  getUserDevices: async () => {
+    const response = await fetch(pathFor('/user/devices'), { headers: userHeaders() });
+    return jsonOrThrow(response, 'Failed to check linked devices');
+  },
+
+  getUserProfile: async () => {
+    const response = await fetch(pathFor('/user/profile'), { headers: userHeaders() });
+    return jsonOrThrow(response, 'Failed to load account profile');
+  },
+
+  updateUserProfile: async (username: string) => {
+    const response = await fetch(pathFor('/user/profile'), {
+      method: 'PATCH',
+      headers: userHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ username }),
+    });
+    return jsonOrThrow(response, 'Failed to update account profile');
+  },
+
+  deleteUserAccount: async () => {
+    const response = await fetch(pathFor('/user/account'), {
+      method: 'DELETE',
+      headers: userHeaders(),
+    });
+    return jsonOrThrow(response, 'Failed to delete account');
   },
 
   getSeasonEpisodes: async (mediaId: string, seasonNumber: number) => {
