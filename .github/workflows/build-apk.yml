@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - native-android-migration
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -34,6 +33,12 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - run: chmod +x android/gradlew
+
+      - name: Pull request native compile check
+        if: github.event_name == 'pull_request'
+        run: cd android && ./gradlew compileReleaseJavaWithJavac --stacktrace --no-daemon
+
       - name: Decode release keystore
         if: github.event_name != 'pull_request'
         run: |
@@ -43,18 +48,19 @@ jobs:
           fi
           echo "${{ secrets.WATCHVAULT_KEYSTORE_BASE64 }}" | base64 --decode > android/app/watchvault-release.jks
 
-      - run: chmod +x android/gradlew
-
-      - name: Build native release APK
+      - name: Build signed native release APK
+        if: github.event_name != 'pull_request'
         run: cd android && ./gradlew assembleRelease --stacktrace --no-daemon -PAPP_VERSION_CODE=${APP_VERSION_CODE} -PAPP_VERSION_NAME=${APP_VERSION_NAME}
 
       - name: Prepare APK files
+        if: github.event_name != 'pull_request'
         run: |
           mkdir -p release
           cp android/app/build/outputs/apk/release/app-release.apk release/WatchVault-${APP_VERSION_NAME}.apk
           cp android/app/build/outputs/apk/release/app-release.apk release/WatchVault-latest.apk
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: WatchVault-${{ env.APP_VERSION_NAME }}
           path: release/WatchVault-${{ env.APP_VERSION_NAME }}.apk
