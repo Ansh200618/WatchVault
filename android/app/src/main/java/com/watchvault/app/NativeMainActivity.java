@@ -44,10 +44,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class NativeMainActivity extends AppCompatActivity {
     private static final String API_BASE = "https://watchvault-backend-2lrv.onrender.com/api";
     private static final String PREFS = "watchvault_native";
+    private static final int NETWORK_TIMEOUT_MS = 8000;
 
     private static final int PRIMARY = Color.rgb(103, 80, 164);
     private static final int PRIMARY_CONTAINER = Color.rgb(234, 221, 255);
@@ -59,9 +62,8 @@ public class NativeMainActivity extends AppCompatActivity {
     private static final int ON_SURFACE_VARIANT = Color.rgb(73, 69, 79);
     private static final int OUTLINE = Color.rgb(202, 196, 208);
     private static final int SUCCESS = Color.rgb(56, 106, 32);
-    private static final int ERROR = Color.rgb(179, 38, 30);
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private LinearLayout content;
     private LinearLayout tabs;
     private ProgressBar loader;
@@ -234,16 +236,59 @@ public class NativeMainActivity extends AppCompatActivity {
     private void loadHome() {
         activeTab = "Home";
         buildTabs();
-        setLoading(true);
-        content.removeAllViews();
-        addSectionTitle("Trending now");
+        List<NativeMedia> cached = fetchHomeCacheOnly();
+        if (!cached.isEmpty()) {
+            renderMediaList(cached, "Cached data shown instantly while backend refreshes.");
+            setLoading(true);
+        } else {
+            setLoading(true);
+            content.removeAllViews();
+            addSectionTitle("Trending now");
+            addInfoBlock("Loading from backend...");
+        }
+
         executor.execute(() -> {
-            List<NativeMedia> all = new ArrayList<>();
-            all.addAll(fetchMedia("/media/popular?kind=movie"));
-            all.addAll(fetchMedia("/media/popular?kind=tv"));
-            all.addAll(fetchMedia("/media/popular?kind=anime"));
-            runOnUiThread(() -> renderMediaList(all, "Live results from your WatchVault backend."));
+            List<NativeMedia> fresh = fetchHomeParallel();
+            runOnUiThread(() -> {
+                if (!fresh.isEmpty()) {
+                    renderMediaList(fresh, "Updated from backend.");
+                } else if (cached.isEmpty()) {
+                    renderMediaList(fresh, "Backend is slow or sleeping. Try again in a moment.");
+                } else {
+                    setLoading(false);
+                    toast("Backend is slow. Showing cached data.");
+                }
+            });
         });
+    }
+
+    private List<NativeMedia> fetchHomeParallel() {
+        List<NativeMedia> all = new ArrayList<>();
+        try {
+            Future<List<NativeMedia>> movies = executor.submit(() -> fetchMedia("/media/popular?kind=movie"));
+            Future<List<NativeMedia>> series = executor.submit(() -> fetchMedia("/media/popular?kind=tv"));
+            Future<List<NativeMedia>> anime = executor.submit(() -> fetchMedia("/media/popular?kind=anime"));
+            addFutureResult(all, movies);
+            addFutureResult(all, series);
+            addFutureResult(all, anime);
+        } catch (Exception ignored) {}
+        return all;
+    }
+
+    private void addFutureResult(List<NativeMedia> target, Future<List<NativeMedia>> future) {
+        try {
+            target.addAll(future.get(NETWORK_TIMEOUT_MS + 1000L, TimeUnit.MILLISECONDS));
+        } catch (Exception ignored) {
+            future.cancel(true);
+        }
+    }
+
+    private List<NativeMedia> fetchHomeCacheOnly() {
+        List<NativeMedia> all = new ArrayList<>();
+        all.addAll(fetchMediaCachedOnly("/media/popular?kind=movie"));
+        all.addAll(fetchMediaCachedOnly("/media/popular?kind=tv"));
+        all.addAll(fetchMediaCachedOnly("/media/popular?kind=anime"));
+        return all;
     }
 
     private void loadKind(String kind) {
@@ -252,6 +297,7 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(true);
         content.removeAllViews();
         addSectionTitle(activeTab);
+        addInfoBlock("Loading " + activeTab.toLowerCase() + "...");
         executor.execute(() -> runOnUiThread(() -> renderMediaList(fetchMedia("/media/popular?kind=" + kind), "Tap any title to track it.")));
     }
 
@@ -261,6 +307,7 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(true);
         content.removeAllViews();
         addSectionTitle("Search");
+        addInfoBlock("Searching backend...");
         executor.execute(() -> {
             try {
                 String encoded = URLEncoder.encode(query, "UTF-8");
@@ -278,14 +325,31 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(true);
         content.removeAllViews();
         addSectionTitle("Your Library");
+        addInfoBlock("Loading your saved progress...");
         executor.execute(() -> runOnUiThread(() -> renderLibrary(fetchLibrary())));
     }
 
     private List<NativeMedia> fetchMedia(String path) {
-        List<NativeMedia> items = new ArrayList<>();
         try {
             HttpURLConnection conn = openGet(path);
-            JSONArray arr = new JSONArray(readResponse(conn));
+            String json = readResponse(conn);
+            cacheJson(path, json);
+            return parseMediaJson(json);
+        } catch (Exception ignored) {
+            return fetchMediaCachedOnly(path);
+        }
+    }
+
+    private List<NativeMedia> fetchMediaCachedOnly(String path) {
+        String json = prefs.getString(cacheKey(path), null);
+        if (json == null || json.trim().isEmpty()) return new ArrayList<>();
+        return parseMediaJson(json);
+    }
+
+    private List<NativeMedia> parseMediaJson(String json) {
+        List<NativeMedia> items = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(json);
             Map<String, NativeMedia> grouped = new LinkedHashMap<>();
             for (int i = 0; i < arr.length(); i++) {
                 NativeMedia media = NativeMedia.from(arr.getJSONObject(i));
@@ -301,9 +365,19 @@ public class NativeMainActivity extends AppCompatActivity {
         List<LibraryEntry> items = new ArrayList<>();
         try {
             HttpURLConnection conn = openGet("/user/library");
-            JSONArray arr = new JSONArray(readResponse(conn));
+            String json = readResponse(conn);
+            cacheJson("/user/library", json);
+            JSONArray arr = new JSONArray(json);
             for (int i = 0; i < arr.length(); i++) items.add(LibraryEntry.from(arr.getJSONObject(i)));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            String json = prefs.getString(cacheKey("/user/library"), null);
+            if (json != null) {
+                try {
+                    JSONArray arr = new JSONArray(json);
+                    for (int i = 0; i < arr.length(); i++) items.add(LibraryEntry.from(arr.getJSONObject(i)));
+                } catch (Exception ignoredToo) {}
+            }
+        }
         return items;
     }
 
@@ -371,8 +445,8 @@ public class NativeMainActivity extends AppCompatActivity {
     }
 
     private void applyHeaders(HttpURLConnection conn) {
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(15000);
+        conn.setConnectTimeout(NETWORK_TIMEOUT_MS);
+        conn.setReadTimeout(NETWORK_TIMEOUT_MS);
         conn.setRequestProperty("Accept", "application/json");
         conn.setRequestProperty("X-WatchVault-User", userId());
         conn.setRequestProperty("X-WatchVault-Device", deviceId());
@@ -387,6 +461,14 @@ public class NativeMainActivity extends AppCompatActivity {
         br.close();
         if (code < 200 || code >= 300) throw new RuntimeException(sb.toString());
         return sb.toString();
+    }
+
+    private String cacheKey(String path) {
+        return "cache_" + path.replaceAll("[^A-Za-z0-9]+", "_");
+    }
+
+    private void cacheJson(String path, String json) {
+        if (json != null && json.trim().length() > 2) prefs.edit().putString(cacheKey(path), json).apply();
     }
 
     private void renderMediaList(List<NativeMedia> items, String subtitle) {
