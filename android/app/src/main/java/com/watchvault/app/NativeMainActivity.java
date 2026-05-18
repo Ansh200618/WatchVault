@@ -38,7 +38,6 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,12 +48,18 @@ import java.util.concurrent.Executors;
 public class NativeMainActivity extends AppCompatActivity {
     private static final String API_BASE = "https://watchvault-backend-2lrv.onrender.com/api";
     private static final String PREFS = "watchvault_native";
-    private static final int GOLD = Color.rgb(217, 164, 65);
-    private static final int BG_TOP = Color.rgb(28, 34, 48);
-    private static final int BG_BOTTOM = Color.rgb(7, 10, 15);
-    private static final int CARD = Color.argb(218, 22, 25, 34);
-    private static final int TEXT = Color.WHITE;
-    private static final int MUTED = Color.rgb(174, 179, 190);
+
+    private static final int PRIMARY = Color.rgb(103, 80, 164);
+    private static final int PRIMARY_CONTAINER = Color.rgb(234, 221, 255);
+    private static final int ON_PRIMARY = Color.WHITE;
+    private static final int BG = Color.rgb(255, 251, 254);
+    private static final int SURFACE = Color.WHITE;
+    private static final int SURFACE_VARIANT = Color.rgb(231, 224, 236);
+    private static final int ON_SURFACE = Color.rgb(29, 27, 32);
+    private static final int ON_SURFACE_VARIANT = Color.rgb(73, 69, 79);
+    private static final int OUTLINE = Color.rgb(202, 196, 208);
+    private static final int SUCCESS = Color.rgb(56, 106, 32);
+    private static final int ERROR = Color.rgb(179, 38, 30);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private LinearLayout content;
@@ -94,65 +99,60 @@ public class NativeMainActivity extends AppCompatActivity {
     private void configureSystemBars() {
         Window window = getWindow();
         WindowCompat.setDecorFitsSystemWindows(window, false);
-        window.setStatusBarColor(Color.TRANSPARENT);
-        window.setNavigationBarColor(Color.TRANSPARENT);
+        window.setStatusBarColor(BG);
+        window.setNavigationBarColor(BG);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.setNavigationBarContrastEnforced(false);
             window.setStatusBarContrastEnforced(false);
         }
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, window.getDecorView());
-        controller.setAppearanceLightStatusBars(false);
-        controller.setAppearanceLightNavigationBars(false);
+        controller.setAppearanceLightStatusBars(true);
+        controller.setAppearanceLightNavigationBars(true);
     }
 
     private void buildShell() {
         FrameLayout root = new FrameLayout(this);
-        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG_TOP, BG_BOTTOM}));
-
-        View glow = new View(this);
-        glow.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{Color.argb(90, 217, 164, 65), Color.TRANSPARENT}));
-        root.addView(glow, new FrameLayout.LayoutParams(-1, dp(270), Gravity.TOP));
+        root.setBackgroundColor(BG);
 
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(18), dp(44), dp(18), dp(96));
+        shell.setPadding(dp(18), dp(46), dp(18), dp(94));
         root.addView(shell, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(0, 0, 0, dp(14));
+        header.setPadding(0, 0, 0, dp(16));
         shell.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout titleBox = new LinearLayout(this);
         titleBox.setOrientation(LinearLayout.VERTICAL);
         header.addView(titleBox, new LinearLayout.LayoutParams(0, -2, 1));
-        titleBox.addView(text("WatchVault", 32, TEXT, Typeface.BOLD));
-        titleBox.addView(text("Native Android app • legal watch tracking", 13, MUTED, Typeface.NORMAL));
+        titleBox.addView(text("WatchVault", 30, ON_SURFACE, Typeface.BOLD));
+        titleBox.addView(text("Movies, series and anime progress", 13, ON_SURFACE_VARIANT, Typeface.NORMAL));
 
-        TextView badge = text("NATIVE", 11, Color.BLACK, Typeface.BOLD);
+        TextView badge = text("Native", 12, PRIMARY, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setBackground(round(GOLD, 999, Color.TRANSPARENT, 0));
-        header.addView(badge, new LinearLayout.LayoutParams(dp(86), dp(36)));
+        badge.setBackground(round(PRIMARY_CONTAINER, 999, Color.TRANSPARENT, 0));
+        header.addView(badge, new LinearLayout.LayoutParams(dp(88), dp(38)));
 
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
         searchRow.setGravity(Gravity.CENTER_VERTICAL);
-        searchRow.setPadding(0, 0, 0, dp(14));
-        shell.addView(searchRow, new LinearLayout.LayoutParams(-1, -2));
+        shell.addView(searchRow, new LinearLayout.LayoutParams(-1, dp(56)));
 
         EditText search = new EditText(this);
-        search.setHint("Search movies, series, anime");
-        search.setHintTextColor(Color.rgb(128, 134, 146));
-        search.setTextColor(TEXT);
+        search.setHint("Search titles");
+        search.setHintTextColor(ON_SURFACE_VARIANT);
+        search.setTextColor(ON_SURFACE);
         search.setSingleLine(true);
-        search.setTextSize(14);
+        search.setTextSize(15);
         search.setPadding(dp(16), 0, dp(16), 0);
-        search.setBackground(round(Color.argb(95, 255, 255, 255), 22, Color.argb(32, 255, 255, 255), 1));
-        searchRow.addView(search, new LinearLayout.LayoutParams(0, dp(52), 1));
+        search.setBackground(round(SURFACE, 16, OUTLINE, 1));
+        searchRow.addView(search, new LinearLayout.LayoutParams(0, -1, 1));
 
-        Button go = pillButton("Go", true);
-        LinearLayout.LayoutParams goLp = new LinearLayout.LayoutParams(dp(68), dp(52));
+        Button go = materialButton("Search", true);
+        LinearLayout.LayoutParams goLp = new LinearLayout.LayoutParams(dp(92), -1);
         goLp.setMargins(dp(10), 0, 0, 0);
         searchRow.addView(go, goLp);
         go.setOnClickListener(v -> {
@@ -164,8 +164,9 @@ public class NativeMainActivity extends AppCompatActivity {
         hsv.setHorizontalScrollBarEnabled(false);
         tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setPadding(0, dp(16), 0, dp(8));
         hsv.addView(tabs);
-        shell.addView(hsv, new LinearLayout.LayoutParams(-1, dp(52)));
+        shell.addView(hsv, new LinearLayout.LayoutParams(-1, dp(66)));
         buildTabs();
 
         loader = new ProgressBar(this);
@@ -176,7 +177,7 @@ public class NativeMainActivity extends AppCompatActivity {
         scroll.setFillViewport(false);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, dp(16), 0, dp(24));
+        content.setPadding(0, dp(12), 0, dp(24));
         scroll.addView(content);
         shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
@@ -184,9 +185,10 @@ public class NativeMainActivity extends AppCompatActivity {
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(8), dp(8), dp(8));
-        nav.setBackground(round(Color.argb(220, 14, 17, 24), 30, Color.argb(45, 255, 255, 255), 1));
+        nav.setBackground(round(SURFACE, 26, OUTLINE, 1));
+        nav.setElevation(dp(8));
         FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(-1, dp(76), Gravity.BOTTOM);
-        navLp.setMargins(dp(18), 0, dp(18), dp(18));
+        navLp.setMargins(dp(16), 0, dp(16), dp(18));
         root.addView(nav, navLp);
 
         addNavButton(nav, "Home", this::loadHome);
@@ -210,7 +212,7 @@ public class NativeMainActivity extends AppCompatActivity {
     }
 
     private void addTab(String label, Runnable action) {
-        Button b = pillButton(label, label.equals(activeTab));
+        Button b = materialButton(label, label.equals(activeTab));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(42));
         lp.setMargins(0, 0, dp(10), 0);
         tabs.addView(b, lp);
@@ -222,7 +224,8 @@ public class NativeMainActivity extends AppCompatActivity {
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(11);
-        b.setTextColor(TEXT);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(label.equals(activeTab) ? PRIMARY : ON_SURFACE_VARIANT);
         b.setBackgroundColor(Color.TRANSPARENT);
         nav.addView(b, new LinearLayout.LayoutParams(0, -1, 1));
         b.setOnClickListener(v -> { activeTab = label; buildTabs(); action.run(); });
@@ -239,7 +242,7 @@ public class NativeMainActivity extends AppCompatActivity {
             all.addAll(fetchMedia("/media/popular?kind=movie"));
             all.addAll(fetchMedia("/media/popular?kind=tv"));
             all.addAll(fetchMedia("/media/popular?kind=anime"));
-            runOnUiThread(() -> renderMediaList(all, "Native Android titles from WatchVault backend"));
+            runOnUiThread(() -> renderMediaList(all, "Live results from your WatchVault backend."));
         });
     }
 
@@ -249,10 +252,7 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(true);
         content.removeAllViews();
         addSectionTitle(activeTab);
-        executor.execute(() -> {
-            List<NativeMedia> data = fetchMedia("/media/popular?kind=" + kind);
-            runOnUiThread(() -> renderMediaList(data, "Tap any title to track it natively"));
-        });
+        executor.execute(() -> runOnUiThread(() -> renderMediaList(fetchMedia("/media/popular?kind=" + kind), "Tap any title to track it.")));
     }
 
     private void loadSearch(String query) {
@@ -265,7 +265,7 @@ public class NativeMainActivity extends AppCompatActivity {
             try {
                 String encoded = URLEncoder.encode(query, "UTF-8");
                 List<NativeMedia> data = fetchMedia("/media/search?q=" + encoded);
-                runOnUiThread(() -> renderMediaList(data, "Search results from backend"));
+                runOnUiThread(() -> renderMediaList(data, "Grouped by main title where possible."));
             } catch (Exception e) {
                 runOnUiThread(() -> renderError("Search failed. Check internet/backend."));
             }
@@ -278,10 +278,7 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(true);
         content.removeAllViews();
         addSectionTitle("Your Library");
-        executor.execute(() -> {
-            List<LibraryEntry> entries = fetchLibrary();
-            runOnUiThread(() -> renderLibrary(entries));
-        });
+        executor.execute(() -> runOnUiThread(() -> renderLibrary(fetchLibrary())));
     }
 
     private List<NativeMedia> fetchMedia(String path) {
@@ -292,9 +289,8 @@ public class NativeMainActivity extends AppCompatActivity {
             Map<String, NativeMedia> grouped = new LinkedHashMap<>();
             for (int i = 0; i < arr.length(); i++) {
                 NativeMedia media = NativeMedia.from(arr.getJSONObject(i));
-                String key = media.groupKey();
-                NativeMedia existing = grouped.get(key);
-                grouped.put(key, existing == null ? media : existing.merge(media));
+                NativeMedia existing = grouped.get(media.groupKey());
+                grouped.put(media.groupKey(), existing == null ? media : existing.merge(media));
             }
             items.addAll(grouped.values());
         } catch (Exception ignored) {}
@@ -317,8 +313,7 @@ public class NativeMainActivity extends AppCompatActivity {
     }
 
     private void saveToLibrary(NativeMedia item, String status, int progress) {
-        Map<String, Boolean> empty = new LinkedHashMap<>();
-        saveProgress(item, status, progress, empty, null, () -> loadLibrary());
+        saveProgress(item, status, progress, new LinkedHashMap<>(), null, this::loadLibrary);
     }
 
     private void saveProgress(NativeMedia item, String status, int progress, Map<String, Boolean> watched, int[] latest, Runnable after) {
@@ -338,8 +333,7 @@ public class NativeMainActivity extends AppCompatActivity {
                 } else {
                     body.put("lastEpisode", JSONObject.NULL);
                 }
-                JSONObject result = patchJson("/user/library/" + URLEncoder.encode(item.id, "UTF-8"), body);
-                ok = result != null;
+                ok = patchJson("/user/library/" + URLEncoder.encode(item.id, "UTF-8"), body) != null;
             } catch (Exception ignored) {}
             boolean finalOk = ok;
             runOnUiThread(() -> {
@@ -369,9 +363,8 @@ public class NativeMainActivity extends AppCompatActivity {
         conn.setDoOutput(true);
         applyHeaders(conn);
         conn.setRequestProperty("Content-Type", "application/json");
-        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
         OutputStream os = conn.getOutputStream();
-        os.write(bytes);
+        os.write(body.toString().getBytes(StandardCharsets.UTF_8));
         os.flush();
         os.close();
         return new JSONObject(readResponse(conn));
@@ -402,7 +395,7 @@ public class NativeMainActivity extends AppCompatActivity {
         currentItems.addAll(items);
         content.removeAllViews();
         addSectionTitle(activeTab);
-        content.addView(text(subtitle, 13, MUTED, Typeface.NORMAL));
+        content.addView(text(subtitle, 13, ON_SURFACE_VARIANT, Typeface.NORMAL));
         if (items.isEmpty()) { renderError("No data returned. Backend/API may be sleeping."); return; }
         for (NativeMedia item : items) addMediaCard(item);
     }
@@ -411,16 +404,16 @@ public class NativeMainActivity extends AppCompatActivity {
         setLoading(false);
         content.removeAllViews();
         addSectionTitle("Your Library");
-        content.addView(text(entries.size() + " saved items on this account", 13, MUTED, Typeface.NORMAL));
+        content.addView(text(entries.size() + " saved items on this account", 13, ON_SURFACE_VARIANT, Typeface.NORMAL));
         if (entries.isEmpty()) { addInfoBlock("Nothing saved yet. Add titles from Home, Movies, Series, or Anime."); return; }
         for (LibraryEntry entry : entries) addLibraryCard(entry);
     }
 
     private void addMediaCard(NativeMedia item) {
         LinearLayout card = card();
-        card.addView(text(item.title, 18, TEXT, Typeface.BOLD));
-        card.addView(text(item.typeLabel() + " • " + item.yearText() + " • " + item.ratingText(), 12, GOLD, Typeface.BOLD));
-        TextView overview = text(item.overview, 13, MUTED, Typeface.NORMAL);
+        card.addView(text(item.title, 18, ON_SURFACE, Typeface.BOLD));
+        card.addView(text(item.typeLabel() + " • " + item.yearText() + " • " + item.ratingText(), 12, PRIMARY, Typeface.BOLD));
+        TextView overview = text(item.overview, 13, ON_SURFACE_VARIANT, Typeface.NORMAL);
         overview.setMaxLines(3);
         LinearLayout.LayoutParams ovLp = new LinearLayout.LayoutParams(-1, -2);
         ovLp.setMargins(0, dp(7), 0, 0);
@@ -436,8 +429,8 @@ public class NativeMainActivity extends AppCompatActivity {
 
     private void addLibraryCard(LibraryEntry entry) {
         LinearLayout card = card();
-        card.addView(text(entry.mediaId, 15, TEXT, Typeface.BOLD));
-        card.addView(text(entry.statusLabel() + " • " + entry.progress + "%", 12, GOLD, Typeface.BOLD));
+        card.addView(text(entry.mediaId, 15, ON_SURFACE, Typeface.BOLD));
+        card.addView(text(entry.statusLabel() + " • " + entry.progress + "%", 12, PRIMARY, Typeface.BOLD));
         ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
         bar.setProgress(entry.progress);
@@ -448,15 +441,13 @@ public class NativeMainActivity extends AppCompatActivity {
 
     private void renderDetail(NativeMedia item) {
         content.removeAllViews();
-        Button back = pillButton("← Back", false);
-        content.addView(back, new LinearLayout.LayoutParams(dp(120), dp(44)));
-        back.setOnClickListener(v -> renderMediaList(currentItems, "Tap any title to track it natively"));
-        TextView title = text(item.title, 28, TEXT, Typeface.BOLD);
+        addWideButton("← Back", false, () -> renderMediaList(currentItems, "Tap any title to track it."));
+        TextView title = text(item.title, 28, ON_SURFACE, Typeface.BOLD);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
         titleLp.setMargins(0, dp(18), 0, dp(8));
         content.addView(title, titleLp);
-        content.addView(text(item.typeLabel() + " • " + item.yearText() + " • " + item.ratingText(), 14, GOLD, Typeface.BOLD));
-        TextView overview = text(item.overview, 14, Color.rgb(224, 228, 236), Typeface.NORMAL);
+        content.addView(text(item.typeLabel() + " • " + item.yearText() + " • " + item.ratingText(), 14, PRIMARY, Typeface.BOLD));
+        TextView overview = text(item.overview, 14, ON_SURFACE_VARIANT, Typeface.NORMAL);
         LinearLayout.LayoutParams overviewLp = new LinearLayout.LayoutParams(-1, -2);
         overviewLp.setMargins(0, dp(16), 0, dp(16));
         content.addView(overview, overviewLp);
@@ -492,14 +483,12 @@ public class NativeMainActivity extends AppCompatActivity {
         if (trackerItem == null) return;
         NativeMedia item = trackerItem;
         content.removeAllViews();
-        Button back = pillButton("← Detail", false);
-        content.addView(back, new LinearLayout.LayoutParams(dp(124), dp(44)));
-        back.setOnClickListener(v -> renderDetail(item));
-        TextView title = text("Episode Tracker", 26, TEXT, Typeface.BOLD);
+        addWideButton("← Detail", false, () -> renderDetail(item));
+        TextView title = text("Episode Tracker", 26, ON_SURFACE, Typeface.BOLD);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
         titleLp.setMargins(0, dp(16), 0, dp(3));
         content.addView(title, titleLp);
-        content.addView(text(item.title, 14, GOLD, Typeface.BOLD));
+        content.addView(text(item.title, 14, PRIMARY, Typeface.BOLD));
 
         LinearLayout seasonRow = new LinearLayout(this);
         seasonRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -511,7 +500,7 @@ public class NativeMainActivity extends AppCompatActivity {
         content.addView(hsv, seasonLp);
         for (int s = 1; s <= item.seasonCount(); s++) {
             final int ss = s;
-            Button b = pillButton("Season " + s, trackerSeason == s);
+            Button b = materialButton("Season " + s, trackerSeason == s);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(44));
             lp.setMargins(0, 0, dp(8), 0);
             seasonRow.addView(b, lp);
@@ -519,8 +508,7 @@ public class NativeMainActivity extends AppCompatActivity {
         }
 
         int count = item.episodesInSeason(trackerSeason);
-        int watchedInSeason = watchedCountInSeason(trackerSeason, count);
-        addInfoBlock("Season " + trackerSeason + " • " + watchedInSeason + "/" + count + " watched • " + trackerProgress(item) + "% overall");
+        addInfoBlock("Season " + trackerSeason + " • " + watchedCountInSeason(trackerSeason, count) + "/" + count + " watched • " + trackerProgress(item) + "% overall");
 
         LinearLayout bulk = new LinearLayout(this);
         bulk.setOrientation(LinearLayout.HORIZONTAL);
@@ -540,16 +528,16 @@ public class NativeMainActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(14), dp(12), dp(14), dp(12));
-        row.setBackground(round(watched ? Color.argb(75, 217, 164, 65) : CARD, 22, watched ? Color.argb(120, 217, 164, 65) : Color.argb(35, 255, 255, 255), 1));
+        row.setBackground(round(watched ? Color.rgb(230, 245, 221) : SURFACE, 18, watched ? SUCCESS : OUTLINE, 1));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, dp(8), 0, 0);
         content.addView(row, lp);
         LinearLayout textBox = new LinearLayout(this);
         textBox.setOrientation(LinearLayout.VERTICAL);
         row.addView(textBox, new LinearLayout.LayoutParams(0, -2, 1));
-        textBox.addView(text("S" + season + " E" + episode, 15, TEXT, Typeface.BOLD));
-        textBox.addView(text(watched ? "Watched" : "Tap to mark watched", 12, MUTED, Typeface.NORMAL));
-        Button toggle = pillButton(watched ? "Undo" : "Watch", !watched);
+        textBox.addView(text("S" + season + " E" + episode, 15, ON_SURFACE, Typeface.BOLD));
+        textBox.addView(text(watched ? "Watched" : "Tap to mark watched", 12, ON_SURFACE_VARIANT, Typeface.NORMAL));
+        Button toggle = materialButton(watched ? "Undo" : "Watch", !watched);
         row.addView(toggle, new LinearLayout.LayoutParams(dp(96), dp(42)));
         toggle.setOnClickListener(v -> toggleEpisode(season, episode));
     }
@@ -650,7 +638,7 @@ public class NativeMainActivity extends AppCompatActivity {
         buildTabs();
         content.removeAllViews();
         addSectionTitle("Profile");
-        addInfoBlock("Native account is active. Same backend progress APIs are used as the web version.");
+        addInfoBlock("Native account is active. Progress is saved with your WatchVault User ID.");
         addProfileRow("User ID", userId());
         addProfileRow("Device ID", deviceId());
         addWideButton("Copy User ID", true, () -> {
@@ -658,7 +646,7 @@ public class NativeMainActivity extends AppCompatActivity {
             clipboard.setPrimaryClip(ClipData.newPlainText("WatchVault User ID", userId()));
             toast("User ID copied");
         });
-        addWideButton("Reset local native identity", false, () -> new AlertDialog.Builder(this)
+        addWideButton("Reset local identity", false, () -> new AlertDialog.Builder(this)
                 .setTitle("Reset local identity?")
                 .setMessage("This creates a new local User ID on this phone. Backend data for the old ID is not deleted.")
                 .setPositiveButton("Reset", (d, w) -> {
@@ -674,7 +662,8 @@ public class NativeMainActivity extends AppCompatActivity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(16), dp(16), dp(16));
-        card.setBackground(round(CARD, 26, Color.argb(38, 255, 255, 255), 1));
+        card.setBackground(round(SURFACE, 20, OUTLINE, 1));
+        card.setElevation(dp(1));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, dp(12), 0, 0);
         content.addView(card, lp);
@@ -682,7 +671,7 @@ public class NativeMainActivity extends AppCompatActivity {
     }
 
     private void addAction(LinearLayout row, String label, boolean primary, Runnable click) {
-        Button b = pillButton(label, primary);
+        Button b = materialButton(label, primary);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1);
         lp.setMargins(row.getChildCount() == 0 ? 0 : dp(10), 0, 0, 0);
         row.addView(b, lp);
@@ -690,8 +679,8 @@ public class NativeMainActivity extends AppCompatActivity {
     }
 
     private void addWideButton(String label, boolean primary, Runnable click) {
-        Button b = pillButton(label, primary);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(54));
+        Button b = materialButton(label, primary);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
         lp.setMargins(0, dp(10), 0, 0);
         content.addView(b, lp);
         b.setOnClickListener(v -> click.run());
@@ -702,18 +691,18 @@ public class NativeMainActivity extends AppCompatActivity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(8), dp(8), dp(8), dp(8));
-        box.setBackground(round(Color.argb(95, 255, 255, 255), 20, Color.argb(35, 255, 255, 255), 1));
+        box.setBackground(round(SURFACE_VARIANT, 18, Color.TRANSPARENT, 0));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1);
         lp.setMargins(0, 0, dp(10), 0);
         row.addView(box, lp);
-        box.addView(text(value, 24, TEXT, Typeface.BOLD));
-        box.addView(text(label, 11, MUTED, Typeface.BOLD));
+        box.addView(text(value, 24, ON_SURFACE, Typeface.BOLD));
+        box.addView(text(label, 11, ON_SURFACE_VARIANT, Typeface.BOLD));
     }
 
     private void addProfileRow(String label, String value) {
         LinearLayout box = card();
-        box.addView(text(label, 12, GOLD, Typeface.BOLD));
-        TextView valueText = text(value, 12, MUTED, Typeface.NORMAL);
+        box.addView(text(label, 12, PRIMARY, Typeface.BOLD));
+        TextView valueText = text(value, 12, ON_SURFACE_VARIANT, Typeface.NORMAL);
         valueText.setTextIsSelectable(true);
         box.addView(valueText);
     }
@@ -721,26 +710,26 @@ public class NativeMainActivity extends AppCompatActivity {
     private void renderError(String msg) { setLoading(false); addInfoBlock(msg); }
 
     private void addInfoBlock(String msg) {
-        TextView box = text(msg, 14, Color.rgb(225, 228, 236), Typeface.NORMAL);
+        TextView box = text(msg, 14, ON_SURFACE_VARIANT, Typeface.NORMAL);
         box.setPadding(dp(16), dp(16), dp(16), dp(16));
-        box.setBackground(round(Color.argb(115, 255, 255, 255), 22, Color.argb(40, 255, 255, 255), 1));
+        box.setBackground(round(PRIMARY_CONTAINER, 18, Color.TRANSPARENT, 0));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, dp(14), 0, dp(14));
         content.addView(box, lp);
     }
 
-    private void addSectionTitle(String label) { content.addView(text(label, 24, TEXT, Typeface.BOLD)); }
+    private void addSectionTitle(String label) { content.addView(text(label, 24, ON_SURFACE, Typeface.BOLD)); }
     private void setLoading(boolean loading) { if (loader != null) loader.setVisibility(loading ? View.VISIBLE : View.GONE); }
     private void toast(String msg) { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show(); }
 
-    private Button pillButton(String label, boolean primary) {
+    private Button materialButton(String label, boolean primary) {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(13);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setTextColor(primary ? Color.BLACK : TEXT);
-        b.setBackground(round(primary ? GOLD : Color.argb(115, 255, 255, 255), 999, Color.argb(36, 255, 255, 255), 1));
+        b.setTextColor(primary ? ON_PRIMARY : PRIMARY);
+        b.setBackground(round(primary ? PRIMARY : SURFACE, 999, primary ? Color.TRANSPARENT : OUTLINE, 1));
         return b;
     }
 
