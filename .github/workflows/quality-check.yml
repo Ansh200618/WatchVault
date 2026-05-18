@@ -1,7 +1,9 @@
-name: WatchVault Full Quality Check
+name: WatchVault Native Quality Check
 
 on:
   push:
+    branches: [ main, native-android-migration ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -13,39 +15,28 @@ env:
 
 jobs:
   full-check:
-    name: Frontend Backend Android Audit
+    name: Native Android Backend Audit
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Verify critical project files exist
+      - name: Verify critical native project files exist
         run: |
-          test -f package.json
-          test -f vite.config.ts
-          test -f capacitor.config.ts
-          test -f src/main.tsx
-          test -f src/app/App.tsx
-          test -f src/app/services/api.ts
-          test -f src/app/services/liveData.tsx
           test -f backend/package.json
           test -f backend/server.js
           test -f android/gradlew
+          test -f android/settings.gradle
           test -f android/app/build.gradle
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/java/com/watchvault/app/NativeMainActivity.java
+          test -f android/app/src/main/java/com/watchvault/app/ReminderReceiver.java
 
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Frontend production build
-        run: npm run build
+      - name: Set up Node.js 22 for backend smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Install backend dependencies
         run: npm --prefix backend install
@@ -59,9 +50,6 @@ jobs:
           curl --fail http://127.0.0.1:5000/api/status
           kill $PID
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
-
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -71,7 +59,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Android release compile verification only
+      - name: Verify Capacitor WebView code is not part of native Android app
+        run: |
+          if grep -R "BridgeActivity\|android.webkit.WebView\|com.getcapacitor" android/app/src/main/java android/app/build.gradle android/settings.gradle; then
+            echo "Capacitor/WebView trace found in native Android app."
+            exit 1
+          fi
+          echo "No Capacitor/WebView trace found in native Android app code."
+
+      - name: Android native compile verification only
         run: |
           chmod +x android/gradlew
           cd android
@@ -83,4 +79,4 @@ jobs:
             echo "Debug APK must not be produced or uploaded by quality workflow."
             exit 1
           fi
-          echo "Quality workflow passed without producing a debug APK artifact."
+          echo "Native quality workflow passed without producing a debug APK artifact."
