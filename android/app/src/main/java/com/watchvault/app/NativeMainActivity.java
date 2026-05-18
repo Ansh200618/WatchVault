@@ -1,9 +1,7 @@
 package com.watchvault.app;
 
 import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -210,7 +208,7 @@ public class NativeMainActivity extends AppCompatActivity {
         addTab("Series", () -> loadKind("tv"));
         addTab("Anime", () -> loadKind("anime"));
         addTab("Library", this::loadLibrary);
-        addTab("Profile", this::renderProfile);
+        addTab("Profile", this::openProfile);
     }
 
     private void addTab(String label, Runnable action) {
@@ -715,29 +713,8 @@ public class NativeMainActivity extends AppCompatActivity {
 
     private String keyFor(int season, int episode) { return season + "-" + episode; }
 
-    private void renderProfile() {
-        activeTab = "Profile";
-        buildTabs();
-        content.removeAllViews();
-        addSectionTitle("Profile");
-        addInfoBlock("Native account is active. Progress is saved with your WatchVault User ID.");
-        addProfileRow("User ID", userId());
-        addProfileRow("Device ID", deviceId());
-        addWideButton("Copy User ID", true, () -> {
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            clipboard.setPrimaryClip(ClipData.newPlainText("WatchVault User ID", userId()));
-            toast("User ID copied");
-        });
-        addWideButton("Reset local identity", false, () -> new AlertDialog.Builder(this)
-                .setTitle("Reset local identity?")
-                .setMessage("This creates a new local User ID on this phone. Backend data for the old ID is not deleted.")
-                .setPositiveButton("Reset", (d, w) -> {
-                    prefs.edit().clear().apply();
-                    ensureIdentity();
-                    renderProfile();
-                })
-                .setNegativeButton("Cancel", null)
-                .show());
+    private void openProfile() {
+        startActivity(new Intent(this, ProfileActivity.class));
     }
 
     private LinearLayout card() {
@@ -779,14 +756,6 @@ public class NativeMainActivity extends AppCompatActivity {
         row.addView(box, lp);
         box.addView(text(value, 24, ON_SURFACE, Typeface.BOLD));
         box.addView(text(label, 11, ON_SURFACE_VARIANT, Typeface.BOLD));
-    }
-
-    private void addProfileRow(String label, String value) {
-        LinearLayout box = card();
-        box.addView(text(label, 12, PRIMARY, Typeface.BOLD));
-        TextView valueText = text(value, 12, ON_SURFACE_VARIANT, Typeface.NORMAL);
-        valueText.setTextIsSelectable(true);
-        box.addView(valueText);
     }
 
     private void renderError(String msg) { setLoading(false); addInfoBlock(msg); }
