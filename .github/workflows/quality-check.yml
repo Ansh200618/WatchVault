@@ -31,6 +31,7 @@ jobs:
           test -f android/app/build.gradle
           test -f android/app/src/main/AndroidManifest.xml
           test -f android/app/src/main/java/com/watchvault/app/NativeMainActivity.java
+          test -f android/app/src/main/java/com/watchvault/app/ProfileActivity.java
           test -f android/app/src/main/java/com/watchvault/app/ReminderReceiver.java
 
       - name: Set up Node.js 22 for backend smoke test
@@ -59,13 +60,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Verify Capacitor WebView code is not part of native Android app
+      - name: Verify forbidden WebView/Capacitor traces are absent from native Android app
         run: |
-          if grep -R "BridgeActivity\|android.webkit.WebView\|com.getcapacitor" android/app/src/main/java android/app/build.gradle android/settings.gradle; then
-            echo "Capacitor/WebView trace found in native Android app."
+          if grep -R "BridgeActivity\|android.webkit.WebView\|com.getcapacitor\|capacitor-android\|capacitor-cordova" android/app/src/main android/app/build.gradle android/settings.gradle; then
+            echo "Forbidden WebView/Capacitor trace found in native Android app files."
             exit 1
           fi
-          echo "No Capacitor/WebView trace found in native Android app code."
+          echo "No forbidden WebView/Capacitor trace found in native Android app files."
 
       - name: Android native compile verification only
         run: |
