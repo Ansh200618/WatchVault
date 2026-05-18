@@ -1,7 +1,7 @@
 # WatchVault
 
 <p align="center">
-  <img src="logo/Logo.png" alt="WatchVault Logo" width="360" />
+  <img src="https://github.com/Ansh200618/WatchVault/blob/6a0ca37866f05e395bc6a4d783055e08ee41a90b/Logo/Logo.png" alt="WatchVault Logo" width="360" />
 </p>
 
 WatchVault is a native Android watch-tracking app for movies, series, anime, episodes, reminders, and personal watch progress.
