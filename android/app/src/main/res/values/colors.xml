@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#6750A4</color>
+    <color name="colorPrimaryDark">#FFFBFE</color>
+    <color name="colorAccent">#6750A4</color>
+    <color name="watchvault_background">#FFFBFE</color>
+    <color name="watchvault_surface">#FFFFFF</color>
+    <color name="watchvault_primary_container">#EADDFF</color>
+</resources>
